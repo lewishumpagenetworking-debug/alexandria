@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Sidebar, spaceNames } from "@/components/navigation";
 import { UniversalCapture } from "@/components/universal-capture";
-import { AgoraView, ForumView, InterrogationView } from "@/components/views/academy-views";
+import { AgoraView, FirstPrinciplesView, ForumView, InterrogationView } from "@/components/views/academy-views";
 import { AtriumView, CapabilityView, HallsView, LedgerView, LibraryView, ScriptoriumView } from "@/components/views/library-views";
 import { saveCapture } from "@/lib/capture-store";
 import type { CaptureDraft } from "@/models/domain";
@@ -32,8 +32,8 @@ export default function AlexandriaApp() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  const capture = useCallback((text: string, type: CaptureDraft["type"]) => {
-    const item = saveCapture({ text, type, inputSource: "keyboard" });
+  const capture = useCallback((draft: Omit<CaptureDraft, "id" | "createdAt" | "inputSource">) => {
+    const item = saveCapture({ ...draft, inputSource: "keyboard" });
     setToast(true);
     window.setTimeout(() => setToast(false), 2600);
     return item;
@@ -50,7 +50,7 @@ export default function AlexandriaApp() {
     try {
       registerBrowserTools({
         navigate,
-        capture,
+        capture: (text, type) => capture({ text, type }),
         startInterrogation: () => { setInterrogationReset((value) => value + 1); navigate("interrogation"); },
       });
     } catch (error) {
@@ -65,6 +65,7 @@ export default function AlexandriaApp() {
     ledger: <LedgerView />,
     scriptorium: <ScriptoriumView />,
     interrogation: <InterrogationView resetKey={interrogationReset} />,
+    principles: <FirstPrinciplesView />,
     agora: <AgoraView />,
     forum: <ForumView />,
     academy: <CapabilityView />,

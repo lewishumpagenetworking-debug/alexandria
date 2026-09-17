@@ -7,6 +7,7 @@ export const spaceNames: Record<AlexandriaSpace, string> = {
   ledger: "Reading Ledger",
   scriptorium: "The Scriptorium",
   interrogation: "Interrogation Chamber",
+  principles: "First Principles",
   agora: "The Agora",
   forum: "The Forum",
   academy: "Academy · Capability Map",
@@ -22,9 +23,10 @@ const librarySpaces: Array<[AlexandriaSpace, string, string]> = [
 
 const academySpaces: Array<[AlexandriaSpace, string, string]> = [
   ["interrogation", "?", "Interrogation"],
+  ["principles", "△", "First Principles"],
   ["agora", "◎", "The Agora"],
   ["forum", "◉", "The Forum"],
-  ["academy", "△", "Capability Map"],
+  ["academy", "◇", "Capability Map"],
 ];
 
 export function Sidebar({ active, open, onNavigate, onCapture }: {
