@@ -3,12 +3,14 @@ export type ISODateString = string;
 
 export type InputSource = "keyboard" | "dictation" | "import" | "mcp";
 export type KnowledgeState =
-  | "captured"
+  | "collected"
   | "understood"
   | "interrogated"
   | "reduced"
-  | "connected"
+  | "rebuilt"
+  | "applied"
   | "tested"
+  | "integrated"
   | "revised";
 
 export interface Source {
@@ -150,8 +152,11 @@ export interface CapabilityEvidence {
 
 export interface CaptureDraft {
   id: EntityId;
-  type: "Question" | "Idea" | "Observation" | "Decision" | "Experience" | "Revision";
+  type: "Thought" | "Question" | "Book highlight" | "Observation" | "Work problem" | "Decision" | "Application" | "Feedback" | "Changed belief" | "Connection" | "Experiment";
   text: string;
+  source?: string;
+  category?: string;
+  relatedBook?: string;
   inputSource: InputSource;
   createdAt: ISODateString;
 }
