@@ -222,6 +222,13 @@ dialog::backdrop { background: rgba(6, 5, 4, .76); backdrop-filter: blur(4px); }
 .seal { width: 78px;height:78px;flex:0 0 auto;border:1px solid var(--bronze);border-radius:50%;display:grid;place-items:center;color:var(--bronze-2);font:600 37px var(--serif);box-shadow:inset 0 0 0 7px #211d18,inset 0 0 0 8px var(--line)}
 .path-step.complete { color: var(--bronze-2); }
 
+.path-progress { display: flex; align-items: center; gap: 8px; padding: 16px 44px; border-bottom: 1px solid var(--line); background: rgba(23, 21, 18, .6); }
+.path-dot { width: 9px; height: 9px; border-radius: 50%; background: #4a4234; flex: 0 0 auto; }
+.path-dot.active { background: var(--bronze-2); box-shadow: 0 0 0 3px rgba(184, 148, 82, .22); }
+.path-dot.done { background: var(--bronze); }
+.path-progress-label { margin-left: 8px; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.limitation-note { margin-top: 14px; color: var(--muted); font-size: 12px; font-style: italic; }
+
 .principles-status { display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;color:var(--muted);font-size:12px }
 .principles-workbench { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); }
 .principle-stage { display:grid;grid-template-columns:90px 1fr;gap:20px;padding:24px;background:#211e19; }
@@ -256,6 +263,7 @@ dialog::backdrop { background: rgba(6, 5, 4, .76); backdrop-filter: blur(4px); }
   .sidebar.open { left: 0; box-shadow: var(--shadow); }
   .mobile-menu { display: block; }
   .topbar { padding: 0 18px; }
+  .path-progress { padding: 14px 18px; flex-wrap: wrap; }
   .content { padding: 30px 18px 60px; }
   .hero { min-height: 480px; padding: 54px 18px; background-position: center; }
   .seek-box { grid-template-columns: 1fr; }

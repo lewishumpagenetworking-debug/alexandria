@@ -6,10 +6,11 @@ export const spaceNames: Record<AlexandriaSpace, string> = {
   halls: "Halls of Knowledge",
   ledger: "Reading Ledger",
   scriptorium: "The Scriptorium",
-  interrogation: "Interrogation Chamber",
-  principles: "First Principles",
-  agora: "The Agora",
-  forum: "The Forum",
+  path: "The Path",
+  interrogation: "The Path",
+  principles: "The Path",
+  agora: "The Path",
+  forum: "The Path",
   academy: "Academy · Capability Map",
 };
 
@@ -22,10 +23,7 @@ const librarySpaces: Array<[AlexandriaSpace, string, string]> = [
 ];
 
 const academySpaces: Array<[AlexandriaSpace, string, string]> = [
-  ["interrogation", "?", "Interrogation"],
-  ["principles", "△", "First Principles"],
-  ["agora", "◎", "The Agora"],
-  ["forum", "◉", "The Forum"],
+  ["path", "→", "The Path"],
   ["academy", "◇", "Capability Map"],
 ];
 
