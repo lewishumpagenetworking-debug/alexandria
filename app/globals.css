@@ -280,3 +280,10 @@ dialog::backdrop { background: rgba(6, 5, 4, .76); backdrop-filter: blur(4px); }
   .stage-number { font-size:31px; }
   .history > div { flex-direction:column;gap:2px; }
 }
+
+.loop-card { margin-bottom: 22px; background: radial-gradient(circle at 85% 0%, rgba(184,148,82,.12), transparent 34%), linear-gradient(145deg, rgba(47,42,34,.9), rgba(29,26,22,.96)); }
+.loop-track { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-top: 16px; color: var(--muted); font-size: 10px; letter-spacing: .12em; }
+.loop-track span { border: 1px solid var(--line); padding: 7px 9px; color: #d6c8ae; background: rgba(0,0,0,.12); }
+.loop-track i { color: var(--bronze); font-style: normal; }
+button:disabled { opacity: .38; cursor: not-allowed; }
+.empty span { display: block; max-width: 720px; margin: 0 auto; }
