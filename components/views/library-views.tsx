@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { capabilityEvidence, halls } from "@/data/mock-data";
+import { halls } from "@/data/mock-data";
 import { loadBooks, loadLogs, saveBooks, saveLogs, seedBooks, uid, type ReadingLog, type StoredBook } from "@/lib/application-store";
+import { progressionSummary, recordActivity } from "@/lib/progression-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 import { PageHeader, Rule } from "@/components/page-header";
 
@@ -40,27 +41,22 @@ export function LibraryView() {
   const [selected, setSelected] = useState<StoredBook | null>(null);
   useEffect(() => setBooks(loadBooks()), []);
   const shown = books.filter((book) => `${book.title} ${book.author}`.toLowerCase().includes(query.toLowerCase()));
-  if (selected) return <section className="view active"><div className="content"><button className="action-link back" onClick={() => setSelected(null)}>← Return to the Library</button><div className="source-hero"><div className="folio-cover">{selected.title}</div><div><div className="eyebrow">Source · Book</div><h1 className="page-title">{selected.title}</h1><p className="page-intro">{selected.author} · {selected.currentPage} of {selected.totalPages} pages · {selected.principles} extracted principles</p><div className="progress"><span style={{ width: `${Math.round(selected.currentPage / selected.totalPages * 100)}%` }} /></div></div></div><Maturity value={selected.completed ? 7 : 3} /><Rule /><div className="knowledge-chain">{[
-    ["Highlights", selected.highlights.length ? selected.highlights.join(" · ") : "Explanation is not prediction; it tells us why reality could not easily be otherwise."],
-    ["Interpretation", "Good explanations survive criticism because their details are constrained by reality."],
-    ["Interrogation", "What evidence would show that this explanation is merely adaptable storytelling?"],
-    ["First principle", "Error correction is more valuable than authority when knowledge is incomplete."],
-    ["Reconstructed principle", "Design decisions so error can be discovered early and corrected cheaply."],
-    ["Connections", "Scientific method · organisational feedback · option value"],
-    ["Application", "Run a reversible pricing test before committing the annual plan."],
-    ["Feedback", "The test revealed a segment distinction the original model ignored."],
-    ["Revision", "Reversibility is useful only when the experiment produces decision-relevant evidence."],
-  ].map(([label, text]) => <article className="chain-item" key={label}><div>{label}</div><p>{text}</p></article>)}</div></div></section>;
+  if (selected) return <section className="view active"><div className="content"><button className="action-link back" onClick={() => setSelected(null)}>← Return to the Library</button><div className="source-hero"><div className="folio-cover">{selected.title}</div><div><div className="eyebrow">Source · Book</div><h1 className="page-title">{selected.title}</h1><p className="page-intro">{selected.author} · {selected.currentPage} of {selected.totalPages} pages · {selected.highlights.length} real highlights</p><div className="progress"><span style={{ width: `${Math.round(selected.currentPage / selected.totalPages * 100)}%` }} /></div></div></div><Rule /><div className="knowledge-chain">
+    <article className="chain-item"><div>Captured material</div><p>{selected.highlights.length ? selected.highlights.join(" · ") : "Nothing captured yet. Add a highlight after your next reading session."}</p></article>
+    <article className="chain-item"><div>Next retention step</div><p>{selected.highlights.length ? "Interrogate one highlight from memory, then reduce it to a principle you can defend." : "Read, then capture the idea that changed or sharpened your model of the world."}</p></article>
+    <article className="chain-item"><div>Application</div><p>No application is assumed. Alexandria should only record one after you deliberately test a principle in life or work.</p></article>
+    <article className="chain-item"><div>Revision</div><p>No revision recorded yet. Return after reality gives you evidence.</p></article>
+  </div></div></section>;
   return <section className="view active"><div className="content"><PageHeader eyebrow="The external memory" title="The Library" intro="Sources are beginnings, not trophies. Follow an idea from encounter through challenge, application, and revision." />
     <div className="section-tools"><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search books, authors, principles…" aria-label="Search library" /><span className="result-count">{shown.length} sources found</span></div>
-    <div className="source-grid library-shelves">{shown.map((book, index) => <button className="book-card" onClick={() => setSelected(book)} key={book.id}><div className={`folio-cover tone-${index % 4}`}>{book.title}</div><div><span className="type">Book · {book.author}</span><h3>{book.title}</h3><p>{book.currentPage} / {book.totalPages} pages · {book.highlights.length + (index % 5 + 2)} highlights · {book.principles} principles</p><div className="progress"><span style={{ width: `${Math.round(book.currentPage / book.totalPages * 100)}%` }} /></div></div></button>)}</div>
+    <div className="source-grid library-shelves">{shown.map((book, index) => <button className="book-card" onClick={() => setSelected(book)} key={book.id}><div className={`folio-cover tone-${index % 4}`}>{book.title}</div><div><span className="type">Book · {book.author}</span><h3>{book.title}</h3><p>{book.currentPage} / {book.totalPages} pages · {book.highlights.length} highlights · {book.principles} principles</p><div className="progress"><span style={{ width: `${Math.round(book.currentPage / book.totalPages * 100)}%` }} /></div></div></button>)}</div>
   </div></section>;
 }
 
 export function HallsView() {
   const [selected, setSelected] = useState<(typeof halls)[number] | null>(null);
-  return <section className="view active"><div className="content"><PageHeader eyebrow="Connected disciplines" title="Halls of Knowledge" intro="A principle may enter through one hall and illuminate another. These are perspectives, never prisons." />
-    {selected ? <><button className="action-link back" onClick={() => setSelected(null)}>← Return to all halls</button><article className="hall-detail" data-roman={selected.roman}><div className="eyebrow">Hall {selected.roman}</div><h2>{selected.title}</h2><p>{selected.description}</p><div className="hall-ledger"><div><b>{selected.count.split(" · ")[0]}</b><span>in active circulation</span></div><div><b>6 active questions</b><span>awaiting synthesis</span></div><div><b>3 additions</b><span>within the last fortnight</span></div></div></article><div className="source-grid"><article className="card"><div className="kicker">Governing question</div><h3>What survives when explanation meets contradictory evidence?</h3></article><article className="card"><div className="kicker">Living principle</div><h3>Systems reveal their purpose through what they repeatedly preserve.</h3></article><article className="card"><div className="kicker">Related sources</div><h3>{selected.title === "Natural Philosophy" ? "Cosmos · The Selfish Gene · A Brief History of Time" : "Thinking, Fast and Slow · Superforecasting · Meditations"}</h3></article></div></> : <div className="hall-grid">{halls.map((hall) => <button className="card hall" data-roman={hall.roman} key={hall.id} onClick={() => setSelected(hall)}><div className="count">{hall.count}</div><h3>{hall.title}</h3><p>{hall.description}</p><span className="action-link">Enter hall →</span></button>)}</div>}
+  return <section className="view active"><div className="content"><PageHeader eyebrow="Connected disciplines" title="Halls of Knowledge" intro="Use the halls as lenses for making connections across disciplines. Alexandria will not invent counts, principles, or evidence that you have not created." />
+    {selected ? <><button className="action-link back" onClick={() => setSelected(null)}>← Return to all halls</button><article className="hall-detail" data-roman={selected.roman}><div className="eyebrow">Hall {selected.roman}</div><h2>{selected.title}</h2><p>{selected.description}</p></article><div className="empty"><strong>No fabricated hall record.</strong><span>As your real principles and connections accumulate, this hall can become a filtered view of them.</span></div></> : <div className="hall-grid">{halls.map((hall) => <button className="card hall" data-roman={hall.roman} key={hall.id} onClick={() => setSelected(hall)}><div className="count">Disciplinary lens</div><h3>{hall.title}</h3><p>{hall.description}</p><span className="action-link">Enter hall →</span></button>)}</div>}
   </div></section>;
 }
 
@@ -68,30 +64,39 @@ export function LedgerView() {
   const [books, setBooks] = useState(seedBooks);
   const [logs, setLogs] = useState<ReadingLog[]>([]);
   const [modal, setModal] = useState<"book" | "session" | "highlight" | null>(null);
-  const [selectedId, setSelectedId] = useState(seedBooks[0].id);
+  const [selectedId, setSelectedId] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
   const [form, setForm] = useState({ title: "", author: "", page: "", total: "", pages: "", minutes: "", highlight: "" });
-  useEffect(() => { setBooks(loadBooks()); setLogs(loadLogs()); }, []);
+  useEffect(() => { const loaded = loadBooks(); setBooks(loaded); setLogs(loadLogs()); setSelectedId((current) => current || loaded[0]?.id || ""); }, []);
   useEffect(() => { if (modal && !dialog.current?.open) dialog.current?.showModal(); if (!modal && dialog.current?.open) dialog.current.close(); }, [modal]);
   function persist(next: StoredBook[], nextLogs = logs) { setBooks(next); saveBooks(next); setLogs(nextLogs); saveLogs(nextLogs); }
   function submit(event: React.FormEvent) {
     event.preventDefault();
     if (modal === "book" && form.title.trim()) {
-      persist([...books, { id: uid("book"), title: form.title, author: form.author || "Unknown author", currentPage: Number(form.page) || 0, totalPages: Number(form.total) || 1, completed: false, highlights: [], principles: 0, lastRead: "Today" }]);
+      const id = uid("book");
+      persist([...books, { id, title: form.title, author: form.author || "Unknown author", currentPage: Number(form.page) || 0, totalPages: Number(form.total) || 1, completed: false, highlights: [], principles: 0, lastRead: "Today" }]);
+      setSelectedId(id);
     }
     if (modal === "session") {
       const pages = Number(form.pages) || 0; const book = books.find((item) => item.id === selectedId); if (!book) return;
       const nextBooks = books.map((item) => item.id === selectedId ? { ...item, currentPage: Math.min(item.totalPages, item.currentPage + pages), completed: item.currentPage + pages >= item.totalPages, lastRead: "Today" } : item);
       persist(nextBooks, [{ id: uid("log"), bookId: book.id, bookTitle: book.title, pages, minutes: Number(form.minutes) || 0, date: new Date().toLocaleDateString("en-GB") }, ...logs]);
+      recordActivity("reading_session", `Logged reading: ${book.title}`, book.id);
     }
-    if (modal === "highlight" && form.highlight.trim()) persist(books.map((book) => book.id === selectedId ? { ...book, highlights: [...book.highlights, form.highlight.trim()] } : book));
+    if (modal === "highlight" && form.highlight.trim()) {
+      const book = books.find((item) => item.id === selectedId);
+      persist(books.map((item) => item.id === selectedId ? { ...item, highlights: [...item.highlights, form.highlight.trim()] } : item));
+      recordActivity("highlight", `Saved highlight${book ? `: ${book.title}` : ""}`, selectedId || undefined);
+    }
     setForm({ title: "", author: "", page: "", total: "", pages: "", minutes: "", highlight: "" }); setModal(null);
   }
   const pagesRead = books.reduce((sum, book) => sum + book.currentPage, 0);
-  const highlights = books.reduce((sum, book) => sum + book.highlights.length, 0) + 41;
+  const highlights = books.reduce((sum, book) => sum + book.highlights.length, 0);
+  const progress = progressionSummary();
   return <section className="view active"><div className="content"><PageHeader eyebrow="Reading as acquisition" title="Reading Ledger" intro="Measure what reading produces: remembered explanations, challenged ideas, tested principles, and revised models." />
-    <div className="ledger-actions"><button className="small-btn primary" onClick={() => setModal("book")}>＋ Add a book</button><button className="small-btn" onClick={() => setModal("session")}>Log reading session</button><button className="small-btn" onClick={() => setModal("highlight")}>Add highlight</button></div>
-    <article className="card"><div className="kicker">Living ledger</div><div className="stat-row"><div className="stat"><b>{pagesRead}</b><span>pages recorded</span></div><div className="stat"><b>{books.filter((book) => !book.completed).length}</b><span>books active</span></div><div className="stat"><b>{books.filter((book) => book.completed).length}</b><span>completed</span></div><div className="stat"><b>{highlights}</b><span>highlights</span></div></div></article><Rule />
+    <div className="ledger-actions"><button className="small-btn primary" onClick={() => setModal("book")}>＋ Add a real book</button><button className="small-btn" disabled={!books.length} onClick={() => setModal("session")}>Log reading session</button><button className="small-btn" disabled={!books.length} onClick={() => setModal("highlight")}>Add highlight</button><button className="small-btn" disabled={!books.length} onClick={() => recordActivity("review_cycle", "Completed deliberate review cycle")}>Complete review cycle +20</button></div>
+    <article className="card"><div className="kicker">Living ledger</div><div className="stat-row"><div className="stat"><b>{pagesRead}</b><span>pages recorded</span></div><div className="stat"><b>{books.filter((book) => !book.completed).length}</b><span>books active</span></div><div className="stat"><b>{highlights}</b><span>highlights</span></div><div className="stat"><b>{progress.reviewCycles}</b><span>review cycles</span></div></div></article><Rule />
+    {!books.length && <div className="empty"><strong>Your Library is deliberately empty.</strong><span>Add the book you are actually reading. Alexandria will build from your real notes, reviews, interrogations and applications—never demo data.</span><div className="top-gap"><button className="small-btn primary" onClick={() => setModal("book")}>Add your first book</button></div></div>}
     <div className="ledger-books">{books.map((book) => <article className="card ledger-book" key={book.id}><div><div className="kicker">{book.completed ? "Completed" : "In progress"}</div><h3>{book.title}</h3><p className="meta">{book.author} · last read {book.lastRead}</p></div><div className="ledger-progress"><span>{Math.round(book.currentPage / book.totalPages * 100)}%</span><div className="progress"><span style={{ width: `${Math.round(book.currentPage / book.totalPages * 100)}%` }} /></div><small>{book.currentPage} of {book.totalPages} pages</small></div><button className="ghost-btn" onClick={() => { const next = books.map((item) => item.id === book.id ? { ...item, completed: true, currentPage: item.totalPages } : item); persist(next); }}>Mark complete</button></article>)}</div>
     <Rule /><h2 className="section-title">Reading history</h2><div className="history">{logs.length ? logs.map((log) => <div key={log.id}><strong>{log.bookTitle}</strong><span>{log.pages} pages · {log.minutes} minutes · {log.date}</span></div>) : <div><strong>No sessions logged on this device yet.</strong><span>Your first session will appear here and survive refresh.</span></div>}</div>
     <dialog ref={dialog} onClose={() => setModal(null)}><form onSubmit={submit}><div className="modal-head"><div><div className="kicker">Reading ledger</div><h2>{modal === "book" ? "Add a book" : modal === "session" ? "Log a session" : "Preserve a highlight"}</h2></div><button type="button" className="close" onClick={() => setModal(null)}>×</button></div><div className="modal-body form-grid">
@@ -117,12 +122,16 @@ export function ScriptoriumView() {
 }
 
 export function CapabilityView() {
-  const groups = [
-    ["Knowledge", "Recall · Comprehension · Synthesis", "knowledge", ["Reconstructed 12 principles without viewing the source.", "Connected one explanation across four disciplines."]],
-    ["Reason", "Logic · First Principles · Counterargument · Probabilistic Judgment", "reason", ["Named disconfirming evidence before five consequential decisions.", "Generated the strongest opposing case in seven sessions."]],
-    ["Communication", "Clarity · Explanation · Compression · Oratory · Storytelling · Persuasion", "communication", ["Completed 8 impromptu Forum sessions.", "Compressed a five-minute explanation to thirty seconds."]],
-    ["Action", "Decision Making · Application · Experimentation · Feedback Incorporation", "action", ["Applied 14 principles in live decisions.", "Recorded outcomes for eight experiments."]],
-    ["Intellectual character", "Curiosity · Willingness to Revise · Independence · Tolerance for Uncertainty", "action", ["Revised 4 prior conclusions following contradictory evidence.", "Kept three important questions unresolved rather than forcing certainty."]],
+  const progress = progressionSummary();
+  const evidence = [
+    ["Deliberate capture", "Thoughts preserved instead of trusted to working memory.", progress.today.filter((event) => event.kind === "capture").length, "today"],
+    ["Review", "Retrieval and reconnection of material already encountered.", progress.reviewCycles, "cycles"],
+    ["Interrogation", "Ideas reconstructed under questioning rather than merely reread.", progress.interrogations, "completed"],
+    ["Application", "Principles put under pressure in decisions or deliberate drills.", progress.applications, "attempts"],
   ] as const;
-  return <section className="view active"><div className="content"><PageHeader eyebrow="Evidence of practice" title="Academy · Capability Map" intro="A record of what you have practised, demonstrated, revised, and carried into action—not a game score." /><div className="cap-grid">{groups.map(([label, title, capability, statements]) => <article className="card cap-group" key={label}><div className="kicker">{label}</div><h3>{title}</h3>{statements.map((statement, index) => { const evidence = capabilityEvidence.find((item) => item.capability === capability && item.statement.startsWith(statement.slice(0, 12))); return <div className="evidence" key={statement}><div className="evidence-mark">{index === 0 ? "◆" : "◇"}</div><p>{statement}<span>{evidence?.provenance ?? (index === 0 ? "Demonstrated across recent sessions" : "Developing through deliberate practice")}</span></p></div>; })}</article>)}</div></div></section>;
+  return <section className="view active"><div className="content"><PageHeader eyebrow="Evidence of practice" title="Academy · Capability Map" intro="Only demonstrated activity appears here. No invented achievements, scores, or flattering evidence." />
+    <div className="card"><div className="kicker">Practice record</div><div className="stat-row"><div className="stat"><b>{progress.totalPoints}</b><span>practice points</span></div><div className="stat"><b>{progress.currentStreak}</b><span>current streak</span></div><div className="stat"><b>{progress.longestStreak}</b><span>longest streak</span></div><div className="stat"><b>{progress.activeDays}</b><span>active days</span></div></div></div>
+    <Rule />
+    <div className="cap-grid">{evidence.map(([label, description, value, unit]) => <article className="card cap-group" key={label}><div className="kicker">{label}</div><h3>{value} {unit}</h3><div className="evidence"><div className="evidence-mark">{value ? "◆" : "◇"}</div><p>{description}<span>{value ? "Recorded from your real activity." : "No evidence recorded yet."}</span></p></div></article>)}</div>
+  </div></section>;
 }

@@ -7,6 +7,7 @@ import { AgoraView, FirstPrinciplesView, ForumView, InterrogationView } from "@/
 import { CapabilityView, HallsView, LedgerView, LibraryView, ScriptoriumView } from "@/components/views/library-views";
 import { FunctionalAtriumView } from "@/components/views/functional-atrium";
 import { saveCapture } from "@/lib/capture-store";
+import { recordActivity } from "@/lib/progression-store";
 import type { CaptureDraft } from "@/models/domain";
 import { registerBrowserTools, type AlexandriaSpace } from "@/services/mcp/browser-tools";
 
@@ -35,6 +36,7 @@ export default function AlexandriaApp() {
 
   const capture = useCallback((draft: Omit<CaptureDraft, "id" | "createdAt" | "inputSource">) => {
     const item = saveCapture({ ...draft, inputSource: "keyboard" });
+    recordActivity("capture", `Captured ${draft.type.toLowerCase()}`);
     window.dispatchEvent(new Event("alexandria:data"));
     setToast(true);
     window.setTimeout(() => setToast(false), 2600);

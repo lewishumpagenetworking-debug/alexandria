@@ -5,6 +5,7 @@ import { agoraScenarios, interrogationQuestions } from "@/data/mock-data";
 import { PageHeader, Rule } from "@/components/page-header";
 import { loadBooks } from "@/lib/application-store";
 import { listCaptures } from "@/lib/capture-store";
+import { recordActivity } from "@/lib/progression-store";
 
 function useCountdown(initial = 120) {
   const [duration, setDuration] = useState(initial);
@@ -27,9 +28,9 @@ export function InterrogationView({ resetKey = 0 }: { resetKey?: number }) {
   const [answer, setAnswer] = useState("");
   const [responses, setResponses] = useState<string[]>([]);
   const [complete, setComplete] = useState(false);
-  const [passage, setPassage] = useState({ text: "Problems are inevitable. Problems are soluble.", source: "The Beginning of Infinity" });
+  const [passage, setPassage] = useState({ text: "", source: "" });
   useEffect(() => {
-    setIndex(0); setAnswer(""); setResponses([]); setComplete(false);
+    setIndex(0); setAnswer(""); setResponses([]); setComplete(false); setPassage({ text: "", source: "" });
     const books = loadBooks();
     const latestBookWithHighlight = [...books].reverse().find((book) => book.highlights.length);
     if (latestBookWithHighlight) {
@@ -45,6 +46,7 @@ export function InterrogationView({ resetKey = 0 }: { resetKey?: number }) {
     if (index === interrogationQuestions.length - 1) {
       const existing = JSON.parse(localStorage.getItem("alexandria-interrogations") || "[]");
       localStorage.setItem("alexandria-interrogations", JSON.stringify([{ passage, responses: nextResponses, at: new Date().toISOString() }, ...existing].slice(0, 100)));
+      recordActivity("interrogation", `Completed interrogation: ${passage.source}`);
       window.dispatchEvent(new Event("alexandria:data"));
       setComplete(true);
       return;
@@ -52,10 +54,9 @@ export function InterrogationView({ resetKey = 0 }: { resetKey?: number }) {
     setIndex((current) => current + 1);
   }
   return <section className="view active"><div className="content"><PageHeader eyebrow="Active recall · Socratic examination" title="Interrogation Chamber" intro="Your interpretation stays hidden until you answer. Speak from memory. Precision is more valuable than fluency." />
-    <div className="manuscript"><div className="kicker">Passage under examination · {passage.source}</div><blockquote>“{passage.text}”</blockquote><p>Your most recent captured idea is examined before Alexandria supplies interpretation.</p></div>
-    {complete ? <article className="card completion"><div className="seal">A</div><div><div className="kicker">Examination complete</div><h2>The thought has survived seven questions.</h2><p className="meta">Your reconstruction is preserved locally. The next step is to test its boundary conditions in action.</p><button className="small-btn primary" onClick={() => { setIndex(0); setResponses([]); setComplete(false); }}>Begin another examination</button></div></article> : <div className="chamber"><article className="card prompt-panel"><div className="prompt-number">{String(index + 1).padStart(2, "0")}</div><div className="kicker">Question {index + 1} of {interrogationQuestions.length}</div><h2>{interrogationQuestions[index].prompt}</h2><textarea className="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Answer in your own language. Do not quote the author." /><div className="mic-row"><button className="mic" title="Dictate with your preferred voice tool" aria-label="Voice compatible input">◉</button><button className="small-btn primary" onClick={next}>{index === interrogationQuestions.length - 1 ? "Complete examination" : "Submit & face the next question"}</button></div></article>
-      <aside className="card"><div className="kicker">Path of inquiry</div><div className="path">{["Statement", "Assumptions", "Fundamentals", "Reduction", "Reconstruction", "Boundaries", "Application"].map((label, step) => <div className={`path-step${step === index ? " active" : step < index ? " complete" : ""}`} key={label}><span>{step < index ? "✓" : step + 1}</span><b>{label}</b></div>)}</div></aside></div>}
-  </div></section>;
+    {!passage.text ? <div className="empty"><strong>Nothing real is ready for interrogation yet.</strong><span>Add a highlight or capture a thought/question first. Alexandria will not supply a demo passage.</span></div> : <div className="manuscript"><div className="kicker">Passage under examination · {passage.source}</div><blockquote>“{passage.text}”</blockquote><p>Your most recent captured idea is examined before Alexandria supplies interpretation.</p></div>}
+    {!passage.text ? null : (complete ? <article className="card completion"><div className="seal">A</div><div><div className="kicker">Examination complete</div><h2>The thought has survived seven questions.</h2><p className="meta">Your reconstruction is preserved locally. The next step is to test its boundary conditions in action.</p><button className="small-btn primary" onClick={() => { setIndex(0); setResponses([]); setComplete(false); }}>Begin another examination</button></div></article> : <div className="chamber"><article className="card prompt-panel"><div className="prompt-number">{String(index + 1).padStart(2, "0")}</div><div className="kicker">Question {index + 1} of {interrogationQuestions.length}</div><h2>{interrogationQuestions[index].prompt}</h2><textarea className="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Answer in your own language. Do not quote the author." /><div className="mic-row"><button className="mic" title="Dictate with your preferred voice tool" aria-label="Voice compatible input">◉</button><button className="small-btn primary" onClick={next}>{index === interrogationQuestions.length - 1 ? "Complete examination" : "Submit & face the next question"}</button></div></article>
+      <aside className="card"><div className="kicker">Path of inquiry</div><div className="path">{["Statement", "Assumptions", "Fundamentals", "Reduction", "Reconstruction", "Boundaries", "Application"].map((label, step) => <div className={`path-step${step === index ? " active" : step < index ? " complete" : ""}`} key={label}><span>{step < index ? "✓" : step + 1}</span><b>{label}</b></div>)}</div></aside></div>)}</div></section>;
 }
 
 const principleStages = [
@@ -67,7 +68,7 @@ export function FirstPrinciplesView() {
   const [saved, setSaved] = useState(false);
   useEffect(() => { try { setValues(JSON.parse(localStorage.getItem("alexandria-first-principles") || "{}")); } catch {} }, []);
   function update(stage: string, value: string) { setValues((current) => ({ ...current, [stage]: value })); setSaved(false); }
-  function save() { localStorage.setItem("alexandria-first-principles", JSON.stringify(values)); setSaved(true); }
+  function save() { localStorage.setItem("alexandria-first-principles", JSON.stringify(values)); if (complete === principleStages.length) recordActivity("principle", "Completed first-principles reconstruction"); setSaved(true); }
   const complete = Object.values(values).filter((value) => value.trim()).length;
   return <section className="view active"><div className="content"><PageHeader eyebrow="Reduction · Reconstruction" title="First Principles" intro="Strip a claim of borrowed language. Separate observation from assumption, then rebuild only what the fundamentals support." />
     <div className="principles-status"><span>{complete} of {principleStages.length} stages articulated</span><button className="small-btn primary" onClick={save}>Save reasoning</button></div>
@@ -80,7 +81,7 @@ export function AgoraView() {
   const [response, setResponse] = useState("");
   const [feedback, setFeedback] = useState(false);
   const clock = useCountdown(120);
-  function submit() { if (!response.trim()) return; clock.pause(); localStorage.setItem("alexandria-last-agora", JSON.stringify({ scenario: agoraScenarios[scenarioIndex], response, at: new Date().toISOString() })); setFeedback(true); }
+  function submit() { if (!response.trim()) return; clock.pause(); localStorage.setItem("alexandria-last-agora", JSON.stringify({ scenario: agoraScenarios[scenarioIndex], response, at: new Date().toISOString() })); recordActivity("application", "Completed Agora application drill"); setFeedback(true); }
   return <section className="view active"><div className="content"><PageHeader eyebrow="Thinking under pressure" title="The Agora" intro="No principle is named for you. Retrieve what matters, reason under constraint, and commit to a response." />
     <article className="card scenario"><div className="scenario-tag">Leadership · Uncertainty · Live scenario</div><h2>{agoraScenarios[scenarioIndex]}</h2><div className={`timer${clock.running ? " running" : ""}`}>{clock.time}</div><DurationPicker value={clock.duration} onChoose={clock.choose} /><Rule /><textarea className="answer" value={response} onChange={(event) => setResponse(event.target.value)} placeholder="Speak or sketch your response. Alexandria reveals its diagnostic only after you commit." /><div className="mic-row"><button className="small-btn" onClick={() => { setScenarioIndex((value) => (value + 1) % agoraScenarios.length); setFeedback(false); setResponse(""); }}>Draw another situation</button><div className="button-row"><button className="small-btn" onClick={clock.running ? clock.pause : clock.start}>{clock.running ? "Pause" : "Begin response"}</button><button className="small-btn primary" onClick={submit}>Commit response</button></div></div></article>
     {feedback && <div className="feedback-grid"><article className="diag"><strong>Relevant principles retrieved</strong><span>Optionality; preserve authority without defending a weak assumption.</span></article><article className="diag"><strong>Assumptions made</strong><span>You assume public concession necessarily reduces confidence.</span></article><article className="diag"><strong>Counterarguments missed</strong><span>Visible correction may strengthen trust when the team values truth over theatre.</span></article><article className="diag"><strong>Alternative interpretation</strong><span>The colleague may be testing whether dissent is genuinely safe.</span></article><article className="diag"><strong>Application quality</strong><span>Your next action is concrete; add the evidence that would make you reverse it.</span></article></div>}

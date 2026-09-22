@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { listCaptures } from "@/lib/capture-store";
 import { loadBooks, type StoredBook } from "@/lib/application-store";
+import { progressionSummary } from "@/lib/progression-store";
+import { isAlexandriaAIConfigured } from "@/services/ai/alexandria-ai";
 import type { CaptureDraft } from "@/models/domain";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 
@@ -69,9 +71,11 @@ export function FunctionalAtriumView({ navigate }: { navigate: (space: Alexandri
     refresh();
     window.addEventListener("storage", refresh);
     window.addEventListener("alexandria:data", refresh);
+    window.addEventListener("alexandria:progression", refresh);
     return () => {
       window.removeEventListener("storage", refresh);
       window.removeEventListener("alexandria:data", refresh);
+      window.removeEventListener("alexandria:progression", refresh);
     };
   }, []);
 
@@ -117,6 +121,14 @@ export function FunctionalAtriumView({ navigate }: { navigate: (space: Alexandri
   }
 
   const noMatches = showResults && retrieval.books.length === 0 && retrieval.captures.length === 0;
+  const progress = progressionSummary();
+  const nextAction = !books.length
+    ? { title: "Add the book you are actually reading", detail: "Alexandria is empty by design. Give it a real source before anything else.", action: "Open Reading Ledger", space: "ledger" as AlexandriaSpace }
+    : !currentBook?.highlights.length
+      ? { title: "Turn today’s reading into memory", detail: "Log the session, then preserve at least one idea in your own record.", action: "Log reading & notes", space: "ledger" as AlexandriaSpace }
+      : pendingHighlights.length
+        ? { title: "Interrogate what you captured", detail: "A highlight is not knowledge yet. Reconstruct it without leaning on the author.", action: "Begin interrogation", space: "interrogation" as AlexandriaSpace }
+        : { title: "Complete a review cycle", detail: "Retrieve, challenge and reconnect older material before consuming more.", action: "Open Reading Ledger", space: "ledger" as AlexandriaSpace };
 
   return (
     <section className="view active">
@@ -178,6 +190,12 @@ export function FunctionalAtriumView({ navigate }: { navigate: (space: Alexandri
       </div>
 
       <div className="content">
+        <article className="card loop-card">
+          <div className="card-head"><div><div className="kicker">Today’s intellectual loop</div><h2>{nextAction.title}</h2><p className="meta">{nextAction.detail}</p></div><button className="small-btn primary" onClick={() => navigate(nextAction.space)}>{nextAction.action}</button></div>
+          <div className="stat-row"><div className="stat"><b>{progress.currentStreak}</b><span>day streak</span></div><div className="stat"><b>{progress.activeDays}</b><span>active days</span></div><div className="stat"><b>{progress.reviewCycles}</b><span>review cycles</span></div><div className="stat"><b>{progress.totalPoints}</b><span>practice points · level {progress.level}</span></div></div>
+          <div className="ai-status"><strong>{isAlexandriaAIConfigured() ? "AI connected" : "AI backend not configured"}</strong><span>{isAlexandriaAIConfigured() ? "Alexandria can call the private reasoning endpoint." : "The browser client is ready; connect a private server endpoint before enabling ChatGPT reasoning."}</span></div>
+          <div className="loop-track"><span>READ</span><i>→</i><span>CAPTURE</span><i>→</i><span>REVIEW</span><i>→</i><span>INTERROGATE</span><i>→</i><span>PRINCIPLE</span><i>→</i><span>APPLY</span><i>→</i><span>RECALL</span></div>
+        </article>
         <div className="atrium-grid">
           <div className="stack">
             <article className="card">
@@ -250,7 +268,7 @@ export function FunctionalAtriumView({ navigate }: { navigate: (space: Alexandri
             </article>
 
             <article className="card metric-card">
-              <div className="kicker">The Library grows</div>
+              <div className="kicker">Real data only</div>
               <div className="stat-row">
                 <div className="stat"><b>{books.length}</b><span>sources</span></div>
                 <div className="stat"><b>{totalHighlights}</b><span>highlights</span></div>
