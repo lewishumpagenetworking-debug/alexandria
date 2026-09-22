@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { listCaptures } from "@/lib/capture-store";
 import { loadBooks, type StoredBook } from "@/lib/application-store";
 import { progressionSummary } from "@/lib/progression-store";
+import { isAlexandriaAIConfigured } from "@/services/ai/alexandria-ai";
 import type { CaptureDraft } from "@/models/domain";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 
@@ -192,6 +193,7 @@ export function FunctionalAtriumView({ navigate }: { navigate: (space: Alexandri
         <article className="card loop-card">
           <div className="card-head"><div><div className="kicker">Today’s intellectual loop</div><h2>{nextAction.title}</h2><p className="meta">{nextAction.detail}</p></div><button className="small-btn primary" onClick={() => navigate(nextAction.space)}>{nextAction.action}</button></div>
           <div className="stat-row"><div className="stat"><b>{progress.currentStreak}</b><span>day streak</span></div><div className="stat"><b>{progress.activeDays}</b><span>active days</span></div><div className="stat"><b>{progress.reviewCycles}</b><span>review cycles</span></div><div className="stat"><b>{progress.totalPoints}</b><span>practice points · level {progress.level}</span></div></div>
+          <div className="ai-status"><strong>{isAlexandriaAIConfigured() ? "AI connected" : "AI backend not configured"}</strong><span>{isAlexandriaAIConfigured() ? "Alexandria can call the private reasoning endpoint." : "The browser client is ready; connect a private server endpoint before enabling ChatGPT reasoning."}</span></div>
           <div className="loop-track"><span>READ</span><i>→</i><span>CAPTURE</span><i>→</i><span>REVIEW</span><i>→</i><span>INTERROGATE</span><i>→</i><span>PRINCIPLE</span><i>→</i><span>APPLY</span><i>→</i><span>RECALL</span></div>
         </article>
         <div className="atrium-grid">
