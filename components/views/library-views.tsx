@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { capabilityEvidence, halls } from "@/data/mock-data";
 import { loadBooks, loadLogs, saveBooks, saveLogs, seedBooks, uid, type ReadingLog, type StoredBook } from "@/lib/application-store";
+import { progressionSummary, recordActivity } from "@/lib/progression-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 import { PageHeader, Rule } from "@/components/page-header";
 
@@ -68,30 +69,39 @@ export function LedgerView() {
   const [books, setBooks] = useState(seedBooks);
   const [logs, setLogs] = useState<ReadingLog[]>([]);
   const [modal, setModal] = useState<"book" | "session" | "highlight" | null>(null);
-  const [selectedId, setSelectedId] = useState(seedBooks[0].id);
+  const [selectedId, setSelectedId] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
   const [form, setForm] = useState({ title: "", author: "", page: "", total: "", pages: "", minutes: "", highlight: "" });
-  useEffect(() => { setBooks(loadBooks()); setLogs(loadLogs()); }, []);
+  useEffect(() => { const loaded = loadBooks(); setBooks(loaded); setLogs(loadLogs()); setSelectedId((current) => current || loaded[0]?.id || ""); }, []);
   useEffect(() => { if (modal && !dialog.current?.open) dialog.current?.showModal(); if (!modal && dialog.current?.open) dialog.current.close(); }, [modal]);
   function persist(next: StoredBook[], nextLogs = logs) { setBooks(next); saveBooks(next); setLogs(nextLogs); saveLogs(nextLogs); }
   function submit(event: React.FormEvent) {
     event.preventDefault();
     if (modal === "book" && form.title.trim()) {
-      persist([...books, { id: uid("book"), title: form.title, author: form.author || "Unknown author", currentPage: Number(form.page) || 0, totalPages: Number(form.total) || 1, completed: false, highlights: [], principles: 0, lastRead: "Today" }]);
+      const id = uid("book");
+      persist([...books, { id, title: form.title, author: form.author || "Unknown author", currentPage: Number(form.page) || 0, totalPages: Number(form.total) || 1, completed: false, highlights: [], principles: 0, lastRead: "Today" }]);
+      setSelectedId(id);
     }
     if (modal === "session") {
       const pages = Number(form.pages) || 0; const book = books.find((item) => item.id === selectedId); if (!book) return;
       const nextBooks = books.map((item) => item.id === selectedId ? { ...item, currentPage: Math.min(item.totalPages, item.currentPage + pages), completed: item.currentPage + pages >= item.totalPages, lastRead: "Today" } : item);
       persist(nextBooks, [{ id: uid("log"), bookId: book.id, bookTitle: book.title, pages, minutes: Number(form.minutes) || 0, date: new Date().toLocaleDateString("en-GB") }, ...logs]);
+      recordActivity("reading_session", `Logged reading: ${book.title}`, book.id);
     }
-    if (modal === "highlight" && form.highlight.trim()) persist(books.map((book) => book.id === selectedId ? { ...book, highlights: [...book.highlights, form.highlight.trim()] } : book));
+    if (modal === "highlight" && form.highlight.trim()) {
+      const book = books.find((item) => item.id === selectedId);
+      persist(books.map((item) => item.id === selectedId ? { ...item, highlights: [...item.highlights, form.highlight.trim()] } : item));
+      recordActivity("highlight", `Saved highlight${book ? `: ${book.title}` : ""}`, selectedId || undefined);
+    }
     setForm({ title: "", author: "", page: "", total: "", pages: "", minutes: "", highlight: "" }); setModal(null);
   }
   const pagesRead = books.reduce((sum, book) => sum + book.currentPage, 0);
-  const highlights = books.reduce((sum, book) => sum + book.highlights.length, 0) + 41;
+  const highlights = books.reduce((sum, book) => sum + book.highlights.length, 0);
+  const progress = progressionSummary();
   return <section className="view active"><div className="content"><PageHeader eyebrow="Reading as acquisition" title="Reading Ledger" intro="Measure what reading produces: remembered explanations, challenged ideas, tested principles, and revised models." />
-    <div className="ledger-actions"><button className="small-btn primary" onClick={() => setModal("book")}>＋ Add a book</button><button className="small-btn" onClick={() => setModal("session")}>Log reading session</button><button className="small-btn" onClick={() => setModal("highlight")}>Add highlight</button></div>
-    <article className="card"><div className="kicker">Living ledger</div><div className="stat-row"><div className="stat"><b>{pagesRead}</b><span>pages recorded</span></div><div className="stat"><b>{books.filter((book) => !book.completed).length}</b><span>books active</span></div><div className="stat"><b>{books.filter((book) => book.completed).length}</b><span>completed</span></div><div className="stat"><b>{highlights}</b><span>highlights</span></div></div></article><Rule />
+    <div className="ledger-actions"><button className="small-btn primary" onClick={() => setModal("book")}>＋ Add a real book</button><button className="small-btn" disabled={!books.length} onClick={() => setModal("session")}>Log reading session</button><button className="small-btn" disabled={!books.length} onClick={() => setModal("highlight")}>Add highlight</button><button className="small-btn" disabled={!books.length} onClick={() => recordActivity("review_cycle", "Completed deliberate review cycle")}>Complete review cycle +20</button></div>
+    <article className="card"><div className="kicker">Living ledger</div><div className="stat-row"><div className="stat"><b>{pagesRead}</b><span>pages recorded</span></div><div className="stat"><b>{books.filter((book) => !book.completed).length}</b><span>books active</span></div><div className="stat"><b>{highlights}</b><span>highlights</span></div><div className="stat"><b>{progress.reviewCycles}</b><span>review cycles</span></div></div></article><Rule />
+    {!books.length && <div className="empty"><strong>Your Library is deliberately empty.</strong><span>Add the book you are actually reading. Alexandria will build from your real notes, reviews, interrogations and applications—never demo data.</span><div className="top-gap"><button className="small-btn primary" onClick={() => setModal("book")}>Add your first book</button></div></div>}
     <div className="ledger-books">{books.map((book) => <article className="card ledger-book" key={book.id}><div><div className="kicker">{book.completed ? "Completed" : "In progress"}</div><h3>{book.title}</h3><p className="meta">{book.author} · last read {book.lastRead}</p></div><div className="ledger-progress"><span>{Math.round(book.currentPage / book.totalPages * 100)}%</span><div className="progress"><span style={{ width: `${Math.round(book.currentPage / book.totalPages * 100)}%` }} /></div><small>{book.currentPage} of {book.totalPages} pages</small></div><button className="ghost-btn" onClick={() => { const next = books.map((item) => item.id === book.id ? { ...item, completed: true, currentPage: item.totalPages } : item); persist(next); }}>Mark complete</button></article>)}</div>
     <Rule /><h2 className="section-title">Reading history</h2><div className="history">{logs.length ? logs.map((log) => <div key={log.id}><strong>{log.bookTitle}</strong><span>{log.pages} pages · {log.minutes} minutes · {log.date}</span></div>) : <div><strong>No sessions logged on this device yet.</strong><span>Your first session will appear here and survive refresh.</span></div>}</div>
     <dialog ref={dialog} onClose={() => setModal(null)}><form onSubmit={submit}><div className="modal-head"><div><div className="kicker">Reading ledger</div><h2>{modal === "book" ? "Add a book" : modal === "session" ? "Log a session" : "Preserve a highlight"}</h2></div><button type="button" className="close" onClick={() => setModal(null)}>×</button></div><div className="modal-body form-grid">
