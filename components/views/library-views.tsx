@@ -41,20 +41,15 @@ export function LibraryView() {
   const [selected, setSelected] = useState<StoredBook | null>(null);
   useEffect(() => setBooks(loadBooks()), []);
   const shown = books.filter((book) => `${book.title} ${book.author}`.toLowerCase().includes(query.toLowerCase()));
-  if (selected) return <section className="view active"><div className="content"><button className="action-link back" onClick={() => setSelected(null)}>← Return to the Library</button><div className="source-hero"><div className="folio-cover">{selected.title}</div><div><div className="eyebrow">Source · Book</div><h1 className="page-title">{selected.title}</h1><p className="page-intro">{selected.author} · {selected.currentPage} of {selected.totalPages} pages · {selected.principles} extracted principles</p><div className="progress"><span style={{ width: `${Math.round(selected.currentPage / selected.totalPages * 100)}%` }} /></div></div></div><Maturity value={selected.completed ? 7 : 3} /><Rule /><div className="knowledge-chain">{[
-    ["Highlights", selected.highlights.length ? selected.highlights.join(" · ") : "Explanation is not prediction; it tells us why reality could not easily be otherwise."],
-    ["Interpretation", "Good explanations survive criticism because their details are constrained by reality."],
-    ["Interrogation", "What evidence would show that this explanation is merely adaptable storytelling?"],
-    ["First principle", "Error correction is more valuable than authority when knowledge is incomplete."],
-    ["Reconstructed principle", "Design decisions so error can be discovered early and corrected cheaply."],
-    ["Connections", "Scientific method · organisational feedback · option value"],
-    ["Application", "Run a reversible pricing test before committing the annual plan."],
-    ["Feedback", "The test revealed a segment distinction the original model ignored."],
-    ["Revision", "Reversibility is useful only when the experiment produces decision-relevant evidence."],
-  ].map(([label, text]) => <article className="chain-item" key={label}><div>{label}</div><p>{text}</p></article>)}</div></div></section>;
+  if (selected) return <section className="view active"><div className="content"><button className="action-link back" onClick={() => setSelected(null)}>← Return to the Library</button><div className="source-hero"><div className="folio-cover">{selected.title}</div><div><div className="eyebrow">Source · Book</div><h1 className="page-title">{selected.title}</h1><p className="page-intro">{selected.author} · {selected.currentPage} of {selected.totalPages} pages · {selected.highlights.length} real highlights</p><div className="progress"><span style={{ width: `${Math.round(selected.currentPage / selected.totalPages * 100)}%` }} /></div></div></div><Rule /><div className="knowledge-chain">
+    <article className="chain-item"><div>Captured material</div><p>{selected.highlights.length ? selected.highlights.join(" · ") : "Nothing captured yet. Add a highlight after your next reading session."}</p></article>
+    <article className="chain-item"><div>Next retention step</div><p>{selected.highlights.length ? "Interrogate one highlight from memory, then reduce it to a principle you can defend." : "Read, then capture the idea that changed or sharpened your model of the world."}</p></article>
+    <article className="chain-item"><div>Application</div><p>No application is assumed. Alexandria should only record one after you deliberately test a principle in life or work.</p></article>
+    <article className="chain-item"><div>Revision</div><p>No revision recorded yet. Return after reality gives you evidence.</p></article>
+  </div></div></section>;
   return <section className="view active"><div className="content"><PageHeader eyebrow="The external memory" title="The Library" intro="Sources are beginnings, not trophies. Follow an idea from encounter through challenge, application, and revision." />
     <div className="section-tools"><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search books, authors, principles…" aria-label="Search library" /><span className="result-count">{shown.length} sources found</span></div>
-    <div className="source-grid library-shelves">{shown.map((book, index) => <button className="book-card" onClick={() => setSelected(book)} key={book.id}><div className={`folio-cover tone-${index % 4}`}>{book.title}</div><div><span className="type">Book · {book.author}</span><h3>{book.title}</h3><p>{book.currentPage} / {book.totalPages} pages · {book.highlights.length + (index % 5 + 2)} highlights · {book.principles} principles</p><div className="progress"><span style={{ width: `${Math.round(book.currentPage / book.totalPages * 100)}%` }} /></div></div></button>)}</div>
+    <div className="source-grid library-shelves">{shown.map((book, index) => <button className="book-card" onClick={() => setSelected(book)} key={book.id}><div className={`folio-cover tone-${index % 4}`}>{book.title}</div><div><span className="type">Book · {book.author}</span><h3>{book.title}</h3><p>{book.currentPage} / {book.totalPages} pages · {book.highlights.length} highlights · {book.principles} principles</p><div className="progress"><span style={{ width: `${Math.round(book.currentPage / book.totalPages * 100)}%` }} /></div></div></button>)}</div>
   </div></section>;
 }
 
