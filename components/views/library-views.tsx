@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { capabilityEvidence, halls } from "@/data/mock-data";
+import { halls } from "@/data/mock-data";
 import { loadBooks, loadLogs, saveBooks, saveLogs, seedBooks, uid, type ReadingLog, type StoredBook } from "@/lib/application-store";
 import { progressionSummary, recordActivity } from "@/lib/progression-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
@@ -55,8 +55,8 @@ export function LibraryView() {
 
 export function HallsView() {
   const [selected, setSelected] = useState<(typeof halls)[number] | null>(null);
-  return <section className="view active"><div className="content"><PageHeader eyebrow="Connected disciplines" title="Halls of Knowledge" intro="A principle may enter through one hall and illuminate another. These are perspectives, never prisons." />
-    {selected ? <><button className="action-link back" onClick={() => setSelected(null)}>← Return to all halls</button><article className="hall-detail" data-roman={selected.roman}><div className="eyebrow">Hall {selected.roman}</div><h2>{selected.title}</h2><p>{selected.description}</p><div className="hall-ledger"><div><b>{selected.count.split(" · ")[0]}</b><span>in active circulation</span></div><div><b>6 active questions</b><span>awaiting synthesis</span></div><div><b>3 additions</b><span>within the last fortnight</span></div></div></article><div className="source-grid"><article className="card"><div className="kicker">Governing question</div><h3>What survives when explanation meets contradictory evidence?</h3></article><article className="card"><div className="kicker">Living principle</div><h3>Systems reveal their purpose through what they repeatedly preserve.</h3></article><article className="card"><div className="kicker">Related sources</div><h3>{selected.title === "Natural Philosophy" ? "Cosmos · The Selfish Gene · A Brief History of Time" : "Thinking, Fast and Slow · Superforecasting · Meditations"}</h3></article></div></> : <div className="hall-grid">{halls.map((hall) => <button className="card hall" data-roman={hall.roman} key={hall.id} onClick={() => setSelected(hall)}><div className="count">{hall.count}</div><h3>{hall.title}</h3><p>{hall.description}</p><span className="action-link">Enter hall →</span></button>)}</div>}
+  return <section className="view active"><div className="content"><PageHeader eyebrow="Connected disciplines" title="Halls of Knowledge" intro="Use the halls as lenses for making connections across disciplines. Alexandria will not invent counts, principles, or evidence that you have not created." />
+    {selected ? <><button className="action-link back" onClick={() => setSelected(null)}>← Return to all halls</button><article className="hall-detail" data-roman={selected.roman}><div className="eyebrow">Hall {selected.roman}</div><h2>{selected.title}</h2><p>{selected.description}</p></article><div className="empty"><strong>No fabricated hall record.</strong><span>As your real principles and connections accumulate, this hall can become a filtered view of them.</span></div></> : <div className="hall-grid">{halls.map((hall) => <button className="card hall" data-roman={hall.roman} key={hall.id} onClick={() => setSelected(hall)}><div className="count">Disciplinary lens</div><h3>{hall.title}</h3><p>{hall.description}</p><span className="action-link">Enter hall →</span></button>)}</div>}
   </div></section>;
 }
 
@@ -122,12 +122,16 @@ export function ScriptoriumView() {
 }
 
 export function CapabilityView() {
-  const groups = [
-    ["Knowledge", "Recall · Comprehension · Synthesis", "knowledge", ["Reconstructed 12 principles without viewing the source.", "Connected one explanation across four disciplines."]],
-    ["Reason", "Logic · First Principles · Counterargument · Probabilistic Judgment", "reason", ["Named disconfirming evidence before five consequential decisions.", "Generated the strongest opposing case in seven sessions."]],
-    ["Communication", "Clarity · Explanation · Compression · Oratory · Storytelling · Persuasion", "communication", ["Completed 8 impromptu Forum sessions.", "Compressed a five-minute explanation to thirty seconds."]],
-    ["Action", "Decision Making · Application · Experimentation · Feedback Incorporation", "action", ["Applied 14 principles in live decisions.", "Recorded outcomes for eight experiments."]],
-    ["Intellectual character", "Curiosity · Willingness to Revise · Independence · Tolerance for Uncertainty", "action", ["Revised 4 prior conclusions following contradictory evidence.", "Kept three important questions unresolved rather than forcing certainty."]],
+  const progress = progressionSummary();
+  const evidence = [
+    ["Deliberate capture", "Thoughts preserved instead of trusted to working memory.", progress.today.filter((event) => event.kind === "capture").length, "today"],
+    ["Review", "Retrieval and reconnection of material already encountered.", progress.reviewCycles, "cycles"],
+    ["Interrogation", "Ideas reconstructed under questioning rather than merely reread.", progress.interrogations, "completed"],
+    ["Application", "Principles put under pressure in decisions or deliberate drills.", progress.applications, "attempts"],
   ] as const;
-  return <section className="view active"><div className="content"><PageHeader eyebrow="Evidence of practice" title="Academy · Capability Map" intro="A record of what you have practised, demonstrated, revised, and carried into action—not a game score." /><div className="cap-grid">{groups.map(([label, title, capability, statements]) => <article className="card cap-group" key={label}><div className="kicker">{label}</div><h3>{title}</h3>{statements.map((statement, index) => { const evidence = capabilityEvidence.find((item) => item.capability === capability && item.statement.startsWith(statement.slice(0, 12))); return <div className="evidence" key={statement}><div className="evidence-mark">{index === 0 ? "◆" : "◇"}</div><p>{statement}<span>{evidence?.provenance ?? (index === 0 ? "Demonstrated across recent sessions" : "Developing through deliberate practice")}</span></p></div>; })}</article>)}</div></div></section>;
+  return <section className="view active"><div className="content"><PageHeader eyebrow="Evidence of practice" title="Academy · Capability Map" intro="Only demonstrated activity appears here. No invented achievements, scores, or flattering evidence." />
+    <div className="card"><div className="kicker">Practice record</div><div className="stat-row"><div className="stat"><b>{progress.totalPoints}</b><span>practice points</span></div><div className="stat"><b>{progress.currentStreak}</b><span>current streak</span></div><div className="stat"><b>{progress.longestStreak}</b><span>longest streak</span></div><div className="stat"><b>{progress.activeDays}</b><span>active days</span></div></div></div>
+    <Rule />
+    <div className="cap-grid">{evidence.map(([label, description, value, unit]) => <article className="card cap-group" key={label}><div className="kicker">{label}</div><h3>{value} {unit}</h3><div className="evidence"><div className="evidence-mark">{value ? "◆" : "◇"}</div><p>{description}<span>{value ? "Recorded from your real activity." : "No evidence recorded yet."}</span></p></div></article>)}</div>
+  </div></section>;
 }
