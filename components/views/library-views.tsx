@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { capabilityEvidence, halls } from "@/data/mock-data";
 import { loadBooks, loadLogs, saveBooks, saveLogs, seedBooks, uid, type ReadingLog, type StoredBook } from "@/lib/application-store";
+import { awardPoints, POINTS } from "@/lib/points-store";
+import { registerCard } from "@/lib/retrieval-store";
+import { commitRows, createNotesTemplate, downloadBlob, xlsxImporter, type ImportSummary } from "@/services/import/xlsx-importer";
+import type { ImportPreview } from "@/services/import/spreadsheet-import";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 import { PageHeader, Rule } from "@/components/page-header";
 
@@ -73,6 +77,55 @@ export function LedgerView() {
   const [form, setForm] = useState({ title: "", author: "", page: "", total: "", pages: "", minutes: "", highlight: "" });
   useEffect(() => { setBooks(loadBooks()); setLogs(loadLogs()); }, []);
   useEffect(() => { if (modal && !dialog.current?.open) dialog.current?.showModal(); if (!modal && dialog.current?.open) dialog.current.close(); }, [modal]);
+
+  // "Upload a book" notes workflow: download a spreadsheet template, fill it offline, re-upload.
+  const notesDialog = useRef<HTMLDialogElement>(null);
+  const [notesBook, setNotesBook] = useState<{ id: string; title: string; author: string } | null>(null);
+  const [notesBookOpenIntent, setNotesBookOpenIntent] = useState(false);
+  const [newBookForm, setNewBookForm] = useState({ title: "", author: "" });
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const notesOpen = notesBook !== null || notesBookOpenIntent;
+  useEffect(() => { if (notesOpen && !notesDialog.current?.open) notesDialog.current?.showModal(); if (!notesOpen && notesDialog.current?.open) notesDialog.current.close(); }, [notesOpen]);
+
+  function closeNotes() {
+    setNotesBook(null); setNotesBookOpenIntent(false); setNewBookForm({ title: "", author: "" });
+    setImportPreview(null); setImportSummary(null); setImportError(null);
+  }
+
+  function startNewBookUpload() { setNotesBookOpenIntent(true); }
+
+  function createBookForUpload(event: React.FormEvent) {
+    event.preventDefault();
+    if (!newBookForm.title.trim()) return;
+    const book: StoredBook = { id: uid("book"), title: newBookForm.title.trim(), author: newBookForm.author.trim() || "Unknown author", currentPage: 0, totalPages: 1, completed: false, highlights: [], principles: 0, lastRead: "Today" };
+    persist([...books, book]);
+    setNotesBook({ id: book.id, title: book.title, author: book.author });
+  }
+
+  async function handleNotesFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !notesBook) return;
+    setImportError(null); setImportSummary(null);
+    try {
+      const buffer = await file.arrayBuffer();
+      const rows = await xlsxImporter.parse(buffer);
+      setImportPreview(xlsxImporter.preview(rows));
+    } catch {
+      setImportError("Couldn't read that file. Make sure it's the downloaded template, saved as .xlsx.");
+      setImportPreview(null);
+    }
+    event.target.value = "";
+  }
+
+  function confirmImport() {
+    if (!importPreview || !notesBook) return;
+    const summary = commitRows(importPreview.rows, { sourceId: notesBook.id, sourceTitle: notesBook.title });
+    setImportSummary(summary);
+    setImportPreview(null);
+    setBooks(loadBooks());
+  }
   function persist(next: StoredBook[], nextLogs = logs) { setBooks(next); saveBooks(next); setLogs(nextLogs); saveLogs(nextLogs); }
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -82,17 +135,24 @@ export function LedgerView() {
     if (modal === "session") {
       const pages = Number(form.pages) || 0; const book = books.find((item) => item.id === selectedId); if (!book) return;
       const nextBooks = books.map((item) => item.id === selectedId ? { ...item, currentPage: Math.min(item.totalPages, item.currentPage + pages), completed: item.currentPage + pages >= item.totalPages, lastRead: "Today" } : item);
-      persist(nextBooks, [{ id: uid("log"), bookId: book.id, bookTitle: book.title, pages, minutes: Number(form.minutes) || 0, date: new Date().toLocaleDateString("en-GB") }, ...logs]);
+      persist(nextBooks, [{ id: uid("log"), bookId: book.id, bookTitle: book.title, pages, minutes: Number(form.minutes) || 0, date: new Date().toLocaleDateString("en-GB"), createdAt: new Date().toISOString() }, ...logs]);
+      awardPoints("reading-session", `Logged ${pages} pages · ${book.title}`, POINTS.readingSession);
     }
-    if (modal === "highlight" && form.highlight.trim()) persist(books.map((book) => book.id === selectedId ? { ...book, highlights: [...book.highlights, form.highlight.trim()] } : book));
+    if (modal === "highlight" && form.highlight.trim()) {
+      const book = books.find((item) => item.id === selectedId);
+      const index = book?.highlights.length ?? 0;
+      persist(books.map((item) => item.id === selectedId ? { ...item, highlights: [...item.highlights, form.highlight.trim()] } : item));
+      awardPoints("highlight", "Added a highlight", POINTS.highlight);
+      if (book) registerCard("highlight", `${book.id}-${index}`, book.title, form.highlight.trim());
+    }
     setForm({ title: "", author: "", page: "", total: "", pages: "", minutes: "", highlight: "" }); setModal(null);
   }
   const pagesRead = books.reduce((sum, book) => sum + book.currentPage, 0);
   const highlights = books.reduce((sum, book) => sum + book.highlights.length, 0) + 41;
   return <section className="view active"><div className="content"><PageHeader eyebrow="Reading as acquisition" title="Reading Ledger" intro="Measure what reading produces: remembered explanations, challenged ideas, tested principles, and revised models." />
-    <div className="ledger-actions"><button className="small-btn primary" onClick={() => setModal("book")}>＋ Add a book</button><button className="small-btn" onClick={() => setModal("session")}>Log reading session</button><button className="small-btn" onClick={() => setModal("highlight")}>Add highlight</button></div>
+    <div className="ledger-actions"><button className="small-btn primary" onClick={() => setModal("book")}>＋ Add a book</button><button className="small-btn" onClick={() => setModal("session")}>Log reading session</button><button className="small-btn" onClick={() => setModal("highlight")}>Add highlight</button><button className="small-btn" onClick={startNewBookUpload}>⇪ Upload a book's notes</button></div>
     <article className="card"><div className="kicker">Living ledger</div><div className="stat-row"><div className="stat"><b>{pagesRead}</b><span>pages recorded</span></div><div className="stat"><b>{books.filter((book) => !book.completed).length}</b><span>books active</span></div><div className="stat"><b>{books.filter((book) => book.completed).length}</b><span>completed</span></div><div className="stat"><b>{highlights}</b><span>highlights</span></div></div></article><Rule />
-    <div className="ledger-books">{books.map((book) => <article className="card ledger-book" key={book.id}><div><div className="kicker">{book.completed ? "Completed" : "In progress"}</div><h3>{book.title}</h3><p className="meta">{book.author} · last read {book.lastRead}</p></div><div className="ledger-progress"><span>{Math.round(book.currentPage / book.totalPages * 100)}%</span><div className="progress"><span style={{ width: `${Math.round(book.currentPage / book.totalPages * 100)}%` }} /></div><small>{book.currentPage} of {book.totalPages} pages</small></div><button className="ghost-btn" onClick={() => { const next = books.map((item) => item.id === book.id ? { ...item, completed: true, currentPage: item.totalPages } : item); persist(next); }}>Mark complete</button></article>)}</div>
+    <div className="ledger-books">{books.map((book) => <article className="card ledger-book" key={book.id}><div><div className="kicker">{book.completed ? "Completed" : "In progress"}</div><h3>{book.title}</h3><p className="meta">{book.author} · last read {book.lastRead} · {book.highlights.length} highlights · {book.principles} principles</p></div><div className="ledger-progress"><span>{Math.round(book.currentPage / book.totalPages * 100)}%</span><div className="progress"><span style={{ width: `${Math.round(book.currentPage / book.totalPages * 100)}%` }} /></div><small>{book.currentPage} of {book.totalPages} pages</small></div><div className="button-row"><button className="ghost-btn" onClick={() => setNotesBook({ id: book.id, title: book.title, author: book.author })}>Notes</button><button className="ghost-btn" onClick={() => { const next = books.map((item) => item.id === book.id ? { ...item, completed: true, currentPage: item.totalPages } : item); persist(next); }}>Mark complete</button></div></article>)}</div>
     <Rule /><h2 className="section-title">Reading history</h2><div className="history">{logs.length ? logs.map((log) => <div key={log.id}><strong>{log.bookTitle}</strong><span>{log.pages} pages · {log.minutes} minutes · {log.date}</span></div>) : <div><strong>No sessions logged on this device yet.</strong><span>Your first session will appear here and survive refresh.</span></div>}</div>
     <dialog ref={dialog} onClose={() => setModal(null)}><form onSubmit={submit}><div className="modal-head"><div><div className="kicker">Reading ledger</div><h2>{modal === "book" ? "Add a book" : modal === "session" ? "Log a session" : "Preserve a highlight"}</h2></div><button type="button" className="close" onClick={() => setModal(null)}>×</button></div><div className="modal-body form-grid">
       {modal !== "book" && <label className="form-span">Book<select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>{books.map((book) => <option value={book.id} key={book.id}>{book.title}</option>)}</select></label>}
@@ -101,6 +161,28 @@ export function LedgerView() {
       {modal === "highlight" && <label className="form-span">Highlight<textarea required value={form.highlight} onChange={(e) => setForm({ ...form, highlight: e.target.value })} /></label>}
       <div className="form-span modal-actions"><span className="voice-note">Stored locally on this device</span><button className="small-btn primary">Save to ledger</button></div>
     </div></form></dialog>
+    <dialog ref={notesDialog} onClose={closeNotes}><div className="modal-head"><div><div className="kicker">Book notes</div><h2>{notesBook ? notesBook.title : "Upload a book's notes"}</h2></div><button type="button" className="close" onClick={closeNotes}>×</button></div><div className="modal-body">
+      {!notesBook ? <form onSubmit={createBookForUpload} className="form-grid">
+        <label>Title<input required value={newBookForm.title} onChange={(e) => setNewBookForm({ ...newBookForm, title: e.target.value })} /></label>
+        <label>Author<input value={newBookForm.author} onChange={(e) => setNewBookForm({ ...newBookForm, author: e.target.value })} /></label>
+        <div className="form-span modal-actions"><span className="voice-note">Creates the book, then gives you the notes template</span><button className="small-btn primary">Continue →</button></div>
+      </form> : <>
+        <p className="page-intro">Download the notes template, fill it in offline — one row per highlight, note, or question — then upload it back here.</p>
+        <div className="button-row"><button type="button" className="small-btn primary" onClick={() => downloadBlob(createNotesTemplate(notesBook), `${notesBook.title.replace(/[^a-z0-9]+/gi, "-")}-notes-template.xlsx`)}>⇩ Download notes template (.xlsx)</button>
+          <label className="small-btn file-label">Upload filled notes<input type="file" accept=".xlsx" onChange={handleNotesFile} /></label></div>
+        {importError && <p className="saved-note">{importError}</p>}
+        {importPreview && <div className="top-gap">
+          <p className="meta">{importPreview.rows.length} rows read{importPreview.issues.length ? ` · ${importPreview.issues.length} will be skipped (no text or principle)` : ""}.</p>
+          <div className="feedback-grid">
+            <article className="diag"><strong>Highlights</strong><span>{importPreview.mapped.filter((item) => "capturedAt" in item).length}</span></article>
+            <article className="diag"><strong>Principles</strong><span>{importPreview.mapped.filter((item) => "statement" in item).length}</span></article>
+            <article className="diag"><strong>Interpretations</strong><span>{importPreview.mapped.filter((item) => !("capturedAt" in item) && !("statement" in item)).length}</span></article>
+          </div>
+          <button type="button" className="small-btn primary top-gap" onClick={confirmImport}>Confirm import</button>
+        </div>}
+        {importSummary && <p className="saved-note">Imported {importSummary.highlights} highlights, {importSummary.principles} principles, {importSummary.interpretations} interpretations, and {importSummary.questions} questions into {notesBook.title}.</p>}
+      </>}
+    </div></dialog>
   </div></section>;
 }
 

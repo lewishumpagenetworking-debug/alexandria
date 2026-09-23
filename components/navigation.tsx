@@ -12,6 +12,7 @@ export const spaceNames: Record<AlexandriaSpace, string> = {
   agora: "The Path",
   forum: "The Path",
   academy: "Academy · Capability Map",
+  settings: "Settings",
 };
 
 const librarySpaces: Array<[AlexandriaSpace, string, string]> = [
@@ -52,6 +53,7 @@ export function Sidebar({ active, open, onNavigate, onCapture }: {
         {group("The Academy", academySpaces)}
       </nav>
       <button className="capture-btn" onClick={onCapture}>＋ Capture a thought</button>
+      <button className={`settings-btn${active === "settings" ? " active" : ""}`} onClick={() => onNavigate("settings")}><span className="sigil">⚙</span>Settings</button>
     </aside>
   );
 }

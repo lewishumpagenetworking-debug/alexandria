@@ -7,6 +7,8 @@ import { loadBooks } from "@/lib/application-store";
 import { listCaptures } from "@/lib/capture-store";
 import { listAgoraSessions, listForumSessions, type RecallStage } from "@/lib/academy-store";
 import type { SourceRef } from "@/lib/path-store";
+import { isAIConfigured } from "@/lib/settings-store";
+import { getAIFeedback } from "@/services/ai/browser-ai-client";
 
 function useCountdown(initial = 120) {
   const [duration, setDuration] = useState(initial);
@@ -26,6 +28,30 @@ function DurationPicker({ value, onChoose }: { value: number; onChoose: (seconds
 
 function LimitationNote({ children }: { children: string }) {
   return <p className="limitation-note">{children}</p>;
+}
+
+/** Purely additive: renders nothing unless an AI provider is configured in Settings. */
+function AIFeedbackPanel({ context, instruction, userResponse }: { context: string; instruction: string; userResponse: string }) {
+  const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [feedback, setFeedback] = useState("");
+  if (!isAIConfigured()) return null;
+
+  async function request() {
+    setState("loading");
+    try {
+      const text = await getAIFeedback({ context, instruction, userResponse });
+      setFeedback(text); setState("done");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "AI feedback failed."); setState("error");
+    }
+  }
+
+  return <div className="ai-feedback top-gap">
+    {state === "idle" && <button className="small-btn" onClick={request}>✦ Get AI feedback</button>}
+    {state === "loading" && <p className="meta">Asking your configured AI provider…</p>}
+    {state === "done" && <article className="diag ai-diag"><strong>AI feedback</strong><span>{feedback}</span></article>}
+    {state === "error" && <><p className="saved-note">{feedback}</p><button className="small-btn" onClick={request}>Try again</button></>}
+  </div>;
 }
 
 export type InterrogationResult = { exerciseType: "interrogation"; passageText: string; passageSource: string; responses: string[] };
@@ -62,7 +88,7 @@ export function InterrogationView({ passage: passageOverride, onComplete }: {
 
   return <section className="view active"><div className="content"><PageHeader eyebrow="Active recall · Socratic examination" title="Interrogation Chamber" intro="Your interpretation stays hidden until you answer. Speak from memory. Precision is more valuable than fluency." />
     <div className="manuscript"><div className="kicker">Passage under examination · {passage.source}</div><blockquote>“{passage.text}”</blockquote><p>Your most recent captured idea is examined before Alexandria supplies interpretation.</p></div>
-    {complete ? <article className="card completion"><div className="seal">A</div><div><div className="kicker">Examination complete</div><h2>The thought has survived seven questions.</h2><p className="meta">Your reconstruction is preserved locally. The next step is to test its boundary conditions in action.</p><button className="small-btn primary" onClick={() => onComplete({ exerciseType: "interrogation", passageText: passage.text, passageSource: passage.source, responses })}>Continue to the next step →</button></div></article> : <div className="chamber"><article className="card prompt-panel"><div className="prompt-number">{String(index + 1).padStart(2, "0")}</div><div className="kicker">Question {index + 1} of {interrogationQuestions.length}</div><h2>{interrogationQuestions[index].prompt}</h2><textarea className="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Answer in your own language. Do not quote the author." /><div className="mic-row"><button className="mic" title="Dictate with your preferred voice tool" aria-label="Voice compatible input">◉</button><button className="small-btn primary" onClick={next}>{index === interrogationQuestions.length - 1 ? "Complete examination" : "Submit & face the next question"}</button></div></article>
+    {complete ? <article className="card completion"><div className="seal">A</div><div><div className="kicker">Examination complete</div><h2>The thought has survived seven questions.</h2><p className="meta">Your reconstruction is preserved locally. The next step is to test its boundary conditions in action.</p><AIFeedbackPanel context={`Passage: "${passage.text}" (${passage.source})`} instruction="Assess these seven Socratic reconstruction answers for rigor, precision, and whether they reveal genuine understanding versus borrowed language." userResponse={responses.map((response, index) => `${index + 1}. ${interrogationQuestions[index].prompt}\n${response}`).join("\n\n")} /><button className="small-btn primary top-gap" onClick={() => onComplete({ exerciseType: "interrogation", passageText: passage.text, passageSource: passage.source, responses })}>Continue to the next step →</button></div></article> : <div className="chamber"><article className="card prompt-panel"><div className="prompt-number">{String(index + 1).padStart(2, "0")}</div><div className="kicker">Question {index + 1} of {interrogationQuestions.length}</div><h2>{interrogationQuestions[index].prompt}</h2><textarea className="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Answer in your own language. Do not quote the author." /><div className="mic-row"><button className="mic" title="Dictate with your preferred voice tool" aria-label="Voice compatible input">◉</button><button className="small-btn primary" onClick={next}>{index === interrogationQuestions.length - 1 ? "Complete examination" : "Submit & face the next question"}</button></div></article>
       <aside className="card"><div className="kicker">Path of inquiry</div><div className="path">{["Statement", "Assumptions", "Fundamentals", "Reduction", "Reconstruction", "Boundaries", "Application"].map((label, step) => <div className={`path-step${step === index ? " active" : step < index ? " complete" : ""}`} key={label}><span>{step < index ? "✓" : step + 1}</span><b>{label}</b></div>)}</div></aside></div>}
   </div></section>;
 }
@@ -87,6 +113,7 @@ export function FirstPrinciplesView({ stage, priorWork, onComplete }: {
     {priorWork && <div className="manuscript"><div className="kicker">Carried forward · {priorWork.label}</div><blockquote>“{priorWork.text}”</blockquote><p>Rebuild without leaning on this phrasing — treat it as a fact to reconstruct from, not an answer to repeat.</p></div>}
     <div className="principles-status"><span>{complete} of {principleStages.length} stages articulated</span></div>
     <div className="principles-workbench">{principleStages.map(([label, prompt], index) => <article className={`principle-stage${values[label]?.trim() ? " filled" : ""}`} key={label}><div className="stage-number">{String(index + 1).padStart(2, "0")}</div><div><div className="kicker">{label}</div><h3>{prompt}</h3><textarea value={values[label] || ""} onChange={(event) => update(label, event.target.value)} placeholder="Write only what you can defend…" /></div></article>)}</div>
+    {done && <AIFeedbackPanel context={priorWork ? `Rebuilding from: "${priorWork.text}"` : "A first-principles reduction, stage by stage."} instruction="Assess whether each stage genuinely follows from the fundamentals rather than restating the original claim in different words." userResponse={principleStages.map(([label]) => `${label}: ${values[label] || "(blank)"}`).join("\n")} />}
     <div className="mic-row top-gap"><span className="voice-note">{done ? "All stages articulated." : `${principleStages.length - complete} stages remaining before you can continue.`}</span><button className="small-btn primary" disabled={!done} onClick={() => onComplete({ exerciseType: "first-principles", values })}>Continue to the next step →</button></div>
   </div></section>;
 }
@@ -102,7 +129,8 @@ export function AgoraView({ onComplete }: { onComplete: (result: AgoraResult) =>
   return <section className="view active"><div className="content"><PageHeader eyebrow="Thinking under pressure" title="The Agora" intro="No principle is named for you. Retrieve what matters, reason under constraint, and commit to a response." />
     <article className="card scenario"><div className="scenario-tag">Leadership · Uncertainty · Live scenario</div><h2>{scenario}</h2><div className={`timer${clock.running ? " running" : ""}`}>{clock.time}</div><DurationPicker value={clock.duration} onChoose={clock.choose} /><Rule /><textarea className="answer" value={response} onChange={(event) => setResponse(event.target.value)} placeholder="Speak or sketch your response. Alexandria reveals its diagnostic only after you commit." /><div className="mic-row"><div className="button-row"><button className="small-btn" onClick={clock.running ? clock.pause : clock.start}>{clock.running ? "Pause" : "Begin response"}</button><button className="small-btn primary" onClick={submit}>Commit response</button></div></div></article>
     {feedback && <><div className="feedback-grid"><article className="diag"><strong>Relevant principles retrieved</strong><span>Optionality; preserve authority without defending a weak assumption.</span></article><article className="diag"><strong>Assumptions made</strong><span>You assume public concession necessarily reduces confidence.</span></article><article className="diag"><strong>Counterarguments missed</strong><span>Visible correction may strengthen trust when the team values truth over theatre.</span></article><article className="diag"><strong>Alternative interpretation</strong><span>The colleague may be testing whether dissent is genuinely safe.</span></article><article className="diag"><strong>Application quality</strong><span>Your next action is concrete; add the evidence that would make you reverse it.</span></article></div>
-      <LimitationNote>This diagnostic is a fixed self-assessment template, not live AI feedback — that is planned for a future release.</LimitationNote>
+      <LimitationNote>This diagnostic is a fixed self-assessment template, not AI-generated — add a key in Settings for real AI feedback below.</LimitationNote>
+      <AIFeedbackPanel context={`Scenario: ${scenario}`} instruction="Assess this response for how well it retrieves the relevant principle, names its own assumptions, and commits to a concrete, reversible next action." userResponse={response} />
       <button className="small-btn primary top-gap" onClick={() => onComplete({ exerciseType: "agora", scenario, durationSeconds: clock.duration, response })}>Continue to the next step →</button></>}
   </div></section>;
 }
@@ -124,7 +152,7 @@ export function ForumView({ onComplete }: { onComplete: (result: ForumResult) =>
   function submit() { if (!answer.trim()) return; clock.pause(); setAnalysed(true); }
   return <section className="view active"><div className="content"><PageHeader eyebrow="Clarity under compression" title="The Forum" intro="Make another human being understand—without hiding uncertainty or borrowing authority." />
     <div className="forum-grid"><article className="card"><div className="kicker">Current speaking challenge</div><h2>{seed.challenge}</h2><div className="form-grid"><label>Audience<select value={audience} onChange={(e) => setAudience(e.target.value)}>{["Child", "Intelligent non-expert", "CEO", "Expert", "Sceptic", "Hostile critic"].map((item) => <option key={item}>{item}</option>)}</select></label><label>Format<select value={format} onChange={(e) => setFormat(e.target.value)}>{["Explanation", "Argument", "Story", "Debate response", "Impromptu speech"].map((item) => <option key={item}>{item}</option>)}</select></label></div><DurationPicker value={clock.duration} onChoose={clock.choose} /><div className={`timer forum-timer${clock.running ? " running" : ""}`}>{clock.time}</div><textarea className="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Speak your response here…" /><div className="mic-row"><button className="small-btn" onClick={clock.running ? clock.pause : clock.start}>{clock.running ? "Pause" : "Start timer"}</button><button className="small-btn primary" onClick={submit}>Submit for diagnosis</button></div></article>
-      <article className="card"><div className="kicker">Diagnostic feedback · no overall score</div>{analysed ? <><div className="diagnostic">{feedbackCategories.map((category) => <div className="diag" key={category}><strong>{category}</strong><span>{observations[category as keyof typeof observations]}</span></div>)}</div><LimitationNote>Feedback shown here is a fixed diagnostic template, not live AI feedback — that is planned for a future release.</LimitationNote><button className="small-btn primary top-gap" onClick={() => onComplete({ exerciseType: "forum", challenge: seed.challenge, audience, format, response: answer })}>Continue to the next step →</button></> : <div className="awaiting-feedback"><div className="seal">F</div><h3>The Forum listens before it judges.</h3><p className="meta">Submit a response to reveal specific evidence across ten dimensions.</p></div>}</article>
+      <article className="card"><div className="kicker">Diagnostic feedback · no overall score</div>{analysed ? <><div className="diagnostic">{feedbackCategories.map((category) => <div className="diag" key={category}><strong>{category}</strong><span>{observations[category as keyof typeof observations]}</span></div>)}</div><LimitationNote>Feedback shown here is a fixed diagnostic template, not AI-generated — add a key in Settings for real AI feedback below.</LimitationNote><AIFeedbackPanel context={`Challenge: ${seed.challenge} · Audience: ${audience} · Format: ${format}`} instruction="Assess clarity, structure, and whether the explanation would actually land with the stated audience." userResponse={answer} /><button className="small-btn primary top-gap" onClick={() => onComplete({ exerciseType: "forum", challenge: seed.challenge, audience, format, response: answer })}>Continue to the next step →</button></> : <div className="awaiting-feedback"><div className="seal">F</div><h3>The Forum listens before it judges.</h3><p className="meta">Submit a response to reveal specific evidence across ten dimensions.</p></div>}</article>
     </div></div></section>;
 }
 
@@ -136,7 +164,12 @@ const RECALL_COPY: Record<RecallStage, { eyebrow: string; title: string; intro: 
   "retrieve-again": { eyebrow: "Spaced retrieval", title: "Retrieve Again", intro: "Does it still hold together without looking?", prompt: "What do you remember, in your own words?" },
 };
 
-export type RecallCheckResult = { exerciseType: "recall-check"; prompt: string; response: string };
+export type RetrievalQuality = "blank" | "partial" | "nailed";
+export type RecallCheckResult = { exerciseType: "recall-check"; prompt: string; response: string; quality?: RetrievalQuality };
+
+const QUALITY_OPTIONS: Array<{ label: string; quality: RetrievalQuality }> = [
+  { label: "Nailed it", quality: "nailed" }, { label: "Partial", quality: "partial" }, { label: "Blank", quality: "blank" },
+];
 
 export function RecallCheckView({ stage, sourceRef, onComplete }: {
   stage: RecallStage;
@@ -147,10 +180,9 @@ export function RecallCheckView({ stage, sourceRef, onComplete }: {
   const isRetrieval = stage === "recall" || stage === "retrieve-again";
   const [revealed, setRevealed] = useState(!isRetrieval);
   const [text, setText] = useState(stage === "revise" ? sourceRef?.text ?? "" : "");
-  const [rated, setRated] = useState<string | null>(null);
 
-  function finish(response: string) {
-    onComplete({ exerciseType: "recall-check", prompt: `${copy.title} · ${sourceRef?.label ?? "practice"}`, response });
+  function finish(response: string, quality?: RetrievalQuality) {
+    onComplete({ exerciseType: "recall-check", prompt: `${copy.title} · ${sourceRef?.label ?? "practice"}`, response, quality });
   }
 
   return <section className="view active"><div className="content"><PageHeader eyebrow={copy.eyebrow} title={copy.title} intro={copy.intro} />
@@ -162,7 +194,7 @@ export function RecallCheckView({ stage, sourceRef, onComplete }: {
         <div className="mic-row"><button className="small-btn primary" onClick={() => setRevealed(true)} disabled={!text.trim()}>Reveal & self-rate →</button></div>
       </> : isRetrieval ? <>
         <p className="meta">Your recall: “{text}”</p>
-        <div className="constraint-row">{["Nailed it", "Partial", "Blank"].map((option) => <button key={option} className={`pill${rated === option ? " active" : ""}`} onClick={() => { setRated(option); finish(`${text} — self-rated: ${option}`); }}>{option}</button>)}</div>
+        <div className="constraint-row">{QUALITY_OPTIONS.map(({ label, quality }) => <button key={quality} className="pill" onClick={() => finish(text, quality)}>{label}</button>)}</div>
       </> : <>
         <textarea className="answer" value={text} onChange={(event) => setText(event.target.value)} placeholder={stage === "encounter" ? "Optional — a first reaction is enough." : "Write your answer…"} />
         <div className="mic-row"><button className="small-btn primary" onClick={() => finish(text.trim() || "(no reaction recorded)")} disabled={stage !== "encounter" && !text.trim()}>Continue to the next step →</button></div>

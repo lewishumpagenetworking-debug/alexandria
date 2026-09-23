@@ -17,6 +17,8 @@ export type ReadingLog = {
   pages: number;
   minutes: number;
   date: string;
+  /** ISO timestamp, added alongside the display-formatted `date` so staleness can be computed reliably. */
+  createdAt?: string;
 };
 
 export const seedBooks: StoredBook[] = [
