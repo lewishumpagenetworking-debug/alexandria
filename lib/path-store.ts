@@ -1,0 +1,278 @@
+import { listCaptures } from "@/lib/capture-store";
+import { loadBooks } from "@/lib/application-store";
+import {
+  addAgoraSession,
+  addForumSession,
+  addInterrogation,
+  addRecallCheck,
+  listAgoraSessions,
+  listForumSessions,
+  listFirstPrinciplesWork,
+  listInterrogations,
+  listRecallChecks,
+  recordObservation,
+  recordRevision,
+  saveFirstPrinciplesWork,
+  type FirstPrinciplesStage,
+  type RecallStage,
+} from "@/lib/academy-store";
+import { seedRecallPassages } from "@/data/mock-data";
+
+export type LoopStage =
+  | "encounter"
+  | "recall"
+  | "interrogate"
+  | "reduce"
+  | "rebuild"
+  | "connect"
+  | "articulate"
+  | "apply"
+  | "observe"
+  | "revise"
+  | "retrieve-again";
+
+export type ExerciseType = "interrogation" | "first-principles" | "agora" | "forum" | "recall-check";
+
+export const STAGE_ORDER: LoopStage[] = [
+  "encounter", "recall", "interrogate", "reduce", "rebuild",
+  "connect", "articulate", "apply", "observe", "revise", "retrieve-again",
+];
+
+export const STAGE_LABELS: Record<LoopStage, string> = {
+  encounter: "Encounter", recall: "Recall", interrogate: "Interrogate", reduce: "Reduce", rebuild: "Rebuild",
+  connect: "Connect", articulate: "Articulate", apply: "Apply", observe: "Observe", revise: "Revise",
+  "retrieve-again": "Retrieve Again",
+};
+
+const STAGE_EXERCISE: Record<LoopStage, ExerciseType> = {
+  encounter: "recall-check", recall: "recall-check", interrogate: "interrogation",
+  reduce: "first-principles", rebuild: "first-principles", connect: "agora",
+  articulate: "forum", apply: "agora", observe: "recall-check", revise: "recall-check",
+  "retrieve-again": "recall-check",
+};
+
+const STEPS_PER_DAY = 2;
+const PATHS_KEY = "alexandria-academy-path-v1";
+
+export type SourceRefType = "capture" | "highlight" | "principle";
+
+export interface SourceRef {
+  type: SourceRefType;
+  id: string;
+  label: string;
+  text: string;
+}
+
+export interface PathStep {
+  id: string;
+  day: number;
+  date: string;
+  order: number;
+  stage: LoopStage;
+  exerciseType: ExerciseType;
+  sourceRef?: SourceRef;
+  status: "locked" | "available" | "completed";
+  completedAt?: string;
+}
+
+export type StepResult =
+  | { exerciseType: "interrogation"; passageText: string; passageSource: string; responses: string[] }
+  | { exerciseType: "first-principles"; values: Record<string, string> }
+  | { exerciseType: "agora"; scenario: string; durationSeconds: number; response: string }
+  | { exerciseType: "forum"; challenge: string; audience: string; format: string; response: string }
+  | { exerciseType: "recall-check"; prompt: string; response: string };
+
+function todayISO() {
+  return new Intl.DateTimeFormat("en-CA").format(new Date());
+}
+
+function getAllSteps(): PathStep[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(PATHS_KEY) || "[]") as PathStep[];
+  } catch {
+    return [];
+  }
+}
+
+function saveAllSteps(steps: PathStep[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(PATHS_KEY, JSON.stringify(steps));
+}
+
+function pickEncounterSource(excludeIds: Set<string>, seedIndex: number): SourceRef {
+  const capture = listCaptures().find((item) => !excludeIds.has(item.id));
+  if (capture) return { type: "capture", id: capture.id, label: capture.type, text: capture.text };
+
+  for (const book of [...loadBooks()].reverse()) {
+    const index = book.highlights.findIndex((_, i) => !excludeIds.has(`${book.id}-${i}`));
+    if (index >= 0) return { type: "highlight", id: `${book.id}-${index}`, label: book.title, text: book.highlights[index] };
+  }
+
+  const seed = seedRecallPassages[seedIndex % seedRecallPassages.length];
+  return { type: "highlight", id: `seed-${seed.id}`, label: seed.source, text: seed.text };
+}
+
+function pickFirstPrinciplesSource(kind: "observe" | "revise"): SourceRef {
+  const works = listFirstPrinciplesWork();
+  const candidate =
+    kind === "observe"
+      ? works.find((work) => !work.observedOutcome)
+      : works.find((work) => work.observedOutcome && !work.revisedStatement) ?? works.find((work) => !work.revisedStatement);
+
+  if (candidate) {
+    const text = candidate.values["Reconstruction"] || candidate.values["Application"] || Object.values(candidate.values)[0] || "";
+    return { type: "principle", id: candidate.id, label: candidate.stage === "reduce" ? "First Principles · Reduce" : "First Principles · Rebuild", text };
+  }
+
+  return {
+    type: "principle",
+    id: "seed-principle",
+    label: "Seed principle",
+    text: "Preserve optionality until information becomes decision-relevant.",
+  };
+}
+
+function resolveSourceRef(stage: LoopStage, builtSoFar: PathStep[], seedIndex: number): SourceRef | undefined {
+  if (stage === "encounter") {
+    const excludeIds = new Set(builtSoFar.filter((step) => step.sourceRef?.type !== "principle").map((step) => step.sourceRef!.id));
+    return pickEncounterSource(excludeIds, seedIndex);
+  }
+  if (stage === "recall" || stage === "retrieve-again") {
+    const previous = [...builtSoFar].reverse().find((step) => step.sourceRef && (step.stage === "encounter" || step.stage === "retrieve-again"));
+    return previous?.sourceRef ?? pickEncounterSource(new Set(), seedIndex);
+  }
+  if (stage === "observe" || stage === "revise") return pickFirstPrinciplesSource(stage);
+  if (stage === "rebuild") {
+    const priorReduce = listFirstPrinciplesWork().find((work) => work.stage === "reduce");
+    if (priorReduce) {
+      const text = priorReduce.values["Fundamental truths"] || priorReduce.values["Reconstruction"] || Object.values(priorReduce.values)[0] || "";
+      return { type: "principle", id: priorReduce.id, label: "First Principles · Reduce", text };
+    }
+    return { type: "principle", id: "seed-principle", label: "Seed principle", text: "Preserve optionality until information becomes decision-relevant." };
+  }
+  return undefined;
+}
+
+function generateNextBatch(all: PathStep[], date: string): PathStep[] {
+  const startIndex = all.length % STAGE_ORDER.length;
+  const day = new Set(all.map((step) => step.date)).size + 1;
+  const batch: PathStep[] = [];
+
+  for (let i = 0; i < STEPS_PER_DAY; i++) {
+    const stage = STAGE_ORDER[(startIndex + i) % STAGE_ORDER.length];
+    batch.push({
+      id: `${date}-${i}`,
+      day,
+      date,
+      order: i,
+      stage,
+      exerciseType: STAGE_EXERCISE[stage],
+      sourceRef: resolveSourceRef(stage, [...all, ...batch], i),
+      status: i === 0 ? "available" : "locked",
+    });
+  }
+  return batch;
+}
+
+/**
+ * Returns the path for `date`. If earlier steps are still incomplete, those are returned
+ * instead (you cannot get ahead by letting a day lapse). If `date` already has a generated
+ * batch — complete or not — that batch is returned as-is; a new batch is only generated the
+ * first time a given date is asked for.
+ */
+export function getDailyPath(date: string = todayISO()): PathStep[] {
+  const all = getAllSteps();
+  const incomplete = all.filter((step) => step.status !== "completed");
+  if (incomplete.length > 0) return incomplete;
+
+  const existingForDate = all.filter((step) => step.date === date);
+  if (existingForDate.length > 0) return existingForDate;
+
+  const generated = generateNextBatch(all, date);
+  saveAllSteps([...all, ...generated]);
+  return generated;
+}
+
+export function getCurrentStep(): PathStep | null {
+  const steps = getDailyPath(todayISO());
+  return steps.find((step) => step.status !== "completed") ?? null;
+}
+
+export function completeStep(stepId: string, result: StepResult): void {
+  const all = getAllSteps();
+  const step = all.find((item) => item.id === stepId);
+  if (!step || step.status === "completed") return;
+
+  if (result.exerciseType === "interrogation") {
+    addInterrogation({ passageText: result.passageText, passageSource: result.passageSource, responses: result.responses });
+  } else if (result.exerciseType === "first-principles") {
+    saveFirstPrinciplesWork({ stage: step.stage as FirstPrinciplesStage, values: result.values });
+  } else if (result.exerciseType === "agora") {
+    addAgoraSession({ scenario: result.scenario, durationSeconds: result.durationSeconds, response: result.response });
+  } else if (result.exerciseType === "forum") {
+    addForumSession({ challenge: result.challenge, audience: result.audience, format: result.format, response: result.response });
+  } else {
+    addRecallCheck({ stage: step.stage as RecallStage, prompt: result.prompt, response: result.response });
+    if (step.stage === "observe" && step.sourceRef?.type === "principle") recordObservation(step.sourceRef.id, result.response);
+    if (step.stage === "revise" && step.sourceRef?.type === "principle") recordRevision(step.sourceRef.id, result.response);
+  }
+
+  const completedAt = new Date().toISOString();
+  const nextInDay = all.find((item) => item.date === step.date && item.order === step.order + 1);
+  const updated = all.map((item) => {
+    if (item.id === stepId) return { ...item, status: "completed" as const, completedAt };
+    if (nextInDay && item.id === nextInDay.id) return { ...item, status: "available" as const };
+    return item;
+  });
+  saveAllSteps(updated);
+}
+
+export interface AcademyStats {
+  totalSteps: number;
+  completedSteps: number;
+  currentStreakDays: number;
+  longestStreakDays: number;
+  cycleLaps: number;
+  sessionsByType: {
+    interrogation: number;
+    firstPrinciples: number;
+    agora: number;
+    forum: number;
+    recallCheck: number;
+  };
+}
+
+function computeStreaks(completedDates: string[]): { current: number; longest: number } {
+  if (!completedDates.length) return { current: 0, longest: 0 };
+  let longest = 1;
+  let run = 1;
+  for (let i = 1; i < completedDates.length; i++) {
+    const diffDays = Math.round((new Date(completedDates[i]).getTime() - new Date(completedDates[i - 1]).getTime()) / 86400000);
+    run = diffDays === 1 ? run + 1 : 1;
+    longest = Math.max(longest, run);
+  }
+  const diffFromToday = Math.round((new Date(todayISO()).getTime() - new Date(completedDates[completedDates.length - 1]).getTime()) / 86400000);
+  return { current: diffFromToday <= 1 ? run : 0, longest };
+}
+
+export function getStats(): AcademyStats {
+  const all = getAllSteps();
+  const completed = all.filter((step) => step.status === "completed");
+  const completedDates = Array.from(new Set(completed.map((step) => step.date))).sort();
+  const { current, longest } = computeStreaks(completedDates);
+  return {
+    totalSteps: all.length,
+    completedSteps: completed.length,
+    currentStreakDays: current,
+    longestStreakDays: longest,
+    cycleLaps: Math.floor(completed.length / STAGE_ORDER.length),
+    sessionsByType: {
+      interrogation: listInterrogations().length,
+      firstPrinciples: listFirstPrinciplesWork().length,
+      agora: listAgoraSessions().length,
+      forum: listForumSessions().length,
+      recallCheck: listRecallChecks().length,
+    },
+  };
+}

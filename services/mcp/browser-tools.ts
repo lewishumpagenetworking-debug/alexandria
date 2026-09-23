@@ -1,6 +1,6 @@
 import type { CaptureDraft } from "@/models/domain";
 
-export type AlexandriaSpace = "atrium" | "library" | "halls" | "ledger" | "scriptorium" | "interrogation" | "principles" | "agora" | "forum" | "academy";
+export type AlexandriaSpace = "atrium" | "library" | "halls" | "ledger" | "scriptorium" | "path" | "interrogation" | "principles" | "agora" | "forum" | "academy";
 
 interface BrowserMCPContext {
   registerTool(tool: {
@@ -45,10 +45,10 @@ export function registerBrowserTools(actions: {
 
   context.registerTool({
     name: "start_interrogation",
-    title: "Start interrogation",
-    description: "Open the Interrogation Chamber at the first active-recall question.",
+    title: "Open the Academy path",
+    description: "Open the Academy at whatever step of the forced sequence the user has actually reached. Cannot jump ahead to a specific exercise.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: false, untrustedContentHint: false },
-    execute: () => { actions.startInterrogation(); return { status: "started" }; },
+    execute: () => { actions.startInterrogation(); return { status: "opened" }; },
   });
 }

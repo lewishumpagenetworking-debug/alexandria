@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Sidebar, spaceNames } from "@/components/navigation";
 import { UniversalCapture } from "@/components/universal-capture";
-import { AgoraView, FirstPrinciplesView, ForumView, InterrogationView } from "@/components/views/academy-views";
+import { PathView } from "@/components/views/path-view";
 import { CapabilityView, HallsView, LedgerView, LibraryView, ScriptoriumView } from "@/components/views/library-views";
 import { FunctionalAtriumView } from "@/components/views/functional-atrium";
 import { saveCapture } from "@/lib/capture-store";
@@ -12,10 +12,17 @@ import { registerBrowserTools, type AlexandriaSpace } from "@/services/mcp/brows
 
 const spaces = Object.keys(spaceNames) as AlexandriaSpace[];
 
+// The four old Academy exercise routes are gated: any manual hash edit to one of them
+// (or any other unreachable step) lands on the Path at whatever step the user actually reached.
+const gatedRedirects: Partial<Record<AlexandriaSpace, AlexandriaSpace>> = {
+  interrogation: "path", principles: "path", agora: "path", forum: "path",
+};
+
 function hashSpace(): AlexandriaSpace {
   if (typeof window === "undefined") return "atrium";
   const requested = window.location.hash.slice(1) as AlexandriaSpace;
-  return spaces.includes(requested) ? requested : "atrium";
+  if (!spaces.includes(requested)) return "atrium";
+  return gatedRedirects[requested] ?? requested;
 }
 
 export default function AlexandriaApp() {
@@ -23,10 +30,10 @@ export default function AlexandriaApp() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [toast, setToast] = useState(false);
-  const [interrogationReset, setInterrogationReset] = useState(0);
   const today = useMemo(() => new Intl.DateTimeFormat("en", { weekday: "long", day: "numeric", month: "long" }).format(new Date()), []);
 
-  const navigate = useCallback((space: AlexandriaSpace) => {
+  const navigate = useCallback((requested: AlexandriaSpace) => {
+    const space = gatedRedirects[requested] ?? requested;
     setActive(space);
     setMenuOpen(false);
     window.history.replaceState(null, "", space === "atrium" ? window.location.pathname : `#${space}`);
@@ -42,10 +49,15 @@ export default function AlexandriaApp() {
   }, []);
 
   useEffect(() => {
-    setActive(hashSpace());
-    const onHashChange = () => setActive(hashSpace());
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    const sync = () => {
+      const space = hashSpace();
+      setActive(space);
+      const requestedHash = window.location.hash.slice(1);
+      if (requestedHash !== space) window.history.replaceState(null, "", space === "atrium" ? window.location.pathname : `#${space}`);
+    };
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
   }, []);
 
   useEffect(() => {
@@ -53,23 +65,28 @@ export default function AlexandriaApp() {
       registerBrowserTools({
         navigate,
         capture: (text, type) => capture({ text, type }),
-        startInterrogation: () => { setInterrogationReset((value) => value + 1); navigate("interrogation"); },
+        startInterrogation: () => navigate("path"),
       });
     } catch (error) {
       console.warn("Browser MCP registration is unavailable", error);
     }
   }, [capture, navigate]);
 
+  const pathView = <PathView navigate={navigate} />;
   const view = {
     atrium: <FunctionalAtriumView navigate={navigate} />,
     library: <LibraryView />,
     halls: <HallsView />,
     ledger: <LedgerView />,
     scriptorium: <ScriptoriumView />,
-    interrogation: <InterrogationView resetKey={interrogationReset} />,
-    principles: <FirstPrinciplesView />,
-    agora: <AgoraView />,
-    forum: <ForumView />,
+    path: pathView,
+    // These four routes are gated and redirected to "path" before `active` is ever set to
+    // them (see gatedRedirects in hashSpace/navigate) — kept only so this map stays total
+    // over AlexandriaSpace.
+    interrogation: pathView,
+    principles: pathView,
+    agora: pathView,
+    forum: pathView,
     academy: <CapabilityView />,
   }[active];
 

@@ -71,6 +71,18 @@ export const agoraScenarios = [
   "A friend asks for honest advice, but you suspect they want reassurance. How do you decide what truthfulness requires?",
 ];
 
+export const forumChallenges = [
+  { challenge: "Explain sunk costs to a founder who has spent three years building.", audience: "Intelligent non-expert", format: "Explanation" },
+  { challenge: "Explain why a reversible decision deserves less caution than an irreversible one.", audience: "Sceptic", format: "Argument" },
+  { challenge: "Explain incentive design to a new manager who just inherited a demotivated team.", audience: "CEO", format: "Impromptu speech" },
+];
+
+export const seedRecallPassages = [
+  { id: "infinity-optimism", source: "The Beginning of Infinity", text: "Problems are inevitable. Problems are soluble." },
+  { id: "feynman-doubt", source: "Surely You’re Joking, Mr. Feynman!", text: "I learned very early the difference between knowing the name of something and knowing something." },
+  { id: "kuhn-paradigm", source: "The Structure of Scientific Revolutions", text: "A paradigm governs, in the first instance, not a subject matter but a group of practitioners." },
+];
+
 export const initialForumFeedback = [
   ["Structure", "State the decision before explaining the concept. The listener needs to know what is at stake."],
   ["Analogy", "Your bridge example is concrete. Keep it; remove the second example."],
