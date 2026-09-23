@@ -1,6 +1,6 @@
 import type { CaptureDraft } from "@/models/domain";
 
-export type AlexandriaSpace = "atrium" | "library" | "halls" | "ledger" | "scriptorium" | "path" | "interrogation" | "principles" | "agora" | "forum" | "academy";
+export type AlexandriaSpace = "atrium" | "library" | "halls" | "ledger" | "scriptorium" | "path" | "interrogation" | "principles" | "agora" | "forum" | "academy" | "settings";
 
 interface BrowserMCPContext {
   registerTool(tool: {

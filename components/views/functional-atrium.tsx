@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { listCaptures } from "@/lib/capture-store";
 import { loadBooks, type StoredBook } from "@/lib/application-store";
+import { getGrowthSummary, type GrowthSummary } from "@/lib/growth-store";
 import type { CaptureDraft } from "@/models/domain";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 
@@ -59,10 +60,12 @@ export function FunctionalAtriumView({ navigate }: { navigate: (space: Alexandri
   const [submittedQuestion, setSubmittedQuestion] = useState("");
   const [showReflection, setShowReflection] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [growth, setGrowth] = useState<GrowthSummary | null>(null);
 
   const refresh = () => {
     setBooks(loadBooks());
     setCaptures(listCaptures());
+    setGrowth(getGrowthSummary());
   };
 
   useEffect(() => {
@@ -178,6 +181,15 @@ export function FunctionalAtriumView({ navigate }: { navigate: (space: Alexandri
       </div>
 
       <div className="content">
+        {growth && <article className="card reminders-banner">
+          <div className="card-head">
+            <div><div className="kicker">Today</div><h2>{growth.pointsToday} points today · {growth.totalPoints} total · streak {growth.streakDays}</h2></div>
+            <button className="ghost-btn" onClick={() => navigate("path")}>Open the Path</button>
+          </div>
+          {growth.reminders.length > 0 ? <div className="reminder-list">
+            {growth.reminders.map((reminder) => <div className={`reminder reminder-${reminder.tone}`} key={reminder.id}>{reminder.text}</div>)}
+          </div> : <p className="meta">Nothing urgent — everything reviewed is on schedule.</p>}
+        </article>}
         <div className="atrium-grid">
           <div className="stack">
             <article className="card">

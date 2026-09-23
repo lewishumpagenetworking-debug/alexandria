@@ -17,6 +17,8 @@ import {
   type RecallStage,
 } from "@/lib/academy-store";
 import { seedRecallPassages } from "@/data/mock-data";
+import { awardPoints, awardStreakBonusIfDue, recordIfBest, POINTS, type PersonalBest, type PointEvent } from "@/lib/points-store";
+import { getDueRetrievals, recordRetrievalScoreByRef, registerCard, type RetrievalQuality } from "@/lib/retrieval-store";
 
 export type LoopStage =
   | "encounter"
@@ -80,7 +82,7 @@ export type StepResult =
   | { exerciseType: "first-principles"; values: Record<string, string> }
   | { exerciseType: "agora"; scenario: string; durationSeconds: number; response: string }
   | { exerciseType: "forum"; challenge: string; audience: string; format: string; response: string }
-  | { exerciseType: "recall-check"; prompt: string; response: string };
+  | { exerciseType: "recall-check"; prompt: string; response: string; quality?: RetrievalQuality };
 
 function todayISO() {
   return new Intl.DateTimeFormat("en-CA").format(new Date());
@@ -133,23 +135,41 @@ function pickFirstPrinciplesSource(kind: "observe" | "revise"): SourceRef {
   };
 }
 
+function pickDueSource(excludeIds: Set<string>, refTypes?: SourceRefType[]): SourceRef | undefined {
+  const due = getDueRetrievals(20).find((card) => !excludeIds.has(card.refId) && (!refTypes || refTypes.includes(card.refType)));
+  return due ? { type: due.refType, id: due.refId, label: due.label, text: due.text } : undefined;
+}
+
+/** Every sourceRef ever shown gets registered for spaced review, so nothing is learned once and forgotten. */
+function registerAndReturn(ref: SourceRef): SourceRef {
+  registerCard(ref.type, ref.id, ref.label, ref.text);
+  return ref;
+}
+
 function resolveSourceRef(stage: LoopStage, builtSoFar: PathStep[], seedIndex: number): SourceRef | undefined {
   if (stage === "encounter") {
     const excludeIds = new Set(builtSoFar.filter((step) => step.sourceRef?.type !== "principle").map((step) => step.sourceRef!.id));
-    return pickEncounterSource(excludeIds, seedIndex);
+    return registerAndReturn(pickEncounterSource(excludeIds, seedIndex));
   }
   if (stage === "recall" || stage === "retrieve-again") {
+    const excludeIds = new Set(builtSoFar.filter((step) => step.sourceRef).map((step) => step.sourceRef!.id));
+    const due = pickDueSource(excludeIds);
+    if (due) return due;
     const previous = [...builtSoFar].reverse().find((step) => step.sourceRef && (step.stage === "encounter" || step.stage === "retrieve-again"));
-    return previous?.sourceRef ?? pickEncounterSource(new Set(), seedIndex);
+    return registerAndReturn(previous?.sourceRef ?? pickEncounterSource(new Set(), seedIndex));
   }
-  if (stage === "observe" || stage === "revise") return pickFirstPrinciplesSource(stage);
+  if (stage === "observe" || stage === "revise") {
+    const due = pickDueSource(new Set(), ["principle"]);
+    if (due) return due;
+    return registerAndReturn(pickFirstPrinciplesSource(stage));
+  }
   if (stage === "rebuild") {
     const priorReduce = listFirstPrinciplesWork().find((work) => work.stage === "reduce");
     if (priorReduce) {
       const text = priorReduce.values["Fundamental truths"] || priorReduce.values["Reconstruction"] || Object.values(priorReduce.values)[0] || "";
-      return { type: "principle", id: priorReduce.id, label: "First Principles · Reduce", text };
+      return registerAndReturn({ type: "principle", id: priorReduce.id, label: "First Principles · Reduce", text });
     }
-    return { type: "principle", id: "seed-principle", label: "Seed principle", text: "Preserve optionality until information becomes decision-relevant." };
+    return registerAndReturn({ type: "principle", id: "seed-principle", label: "Seed principle", text: "Preserve optionality until information becomes decision-relevant." });
   }
   return undefined;
 }
@@ -199,24 +219,55 @@ export function getCurrentStep(): PathStep | null {
   return steps.find((step) => step.status !== "completed") ?? null;
 }
 
-export function completeStep(stepId: string, result: StepResult): void {
+export interface CompletionOutcome {
+  pointsAwarded: PointEvent[];
+  newBests: PersonalBest[];
+}
+
+const EXERCISE_POINTS: Record<ExerciseType, number> = {
+  "recall-check": POINTS.recallCheck,
+  interrogation: POINTS.interrogation,
+  "first-principles": POINTS.firstPrinciples,
+  agora: POINTS.agora,
+  forum: POINTS.forum,
+};
+
+export function completeStep(stepId: string, result: StepResult): CompletionOutcome {
   const all = getAllSteps();
   const step = all.find((item) => item.id === stepId);
-  if (!step || step.status === "completed") return;
+  if (!step || step.status === "completed") return { pointsAwarded: [], newBests: [] };
+
+  const pointsAwarded: PointEvent[] = [];
+  const newBests: PersonalBest[] = [];
 
   if (result.exerciseType === "interrogation") {
     addInterrogation({ passageText: result.passageText, passageSource: result.passageSource, responses: result.responses });
+    const chars = result.responses.reduce((sum, response) => sum + response.length, 0);
+    const best = recordIfBest("interrogation-depth", chars, "Longest Interrogation reconstruction");
+    if (best.isNewBest) newBests.push(best.best);
   } else if (result.exerciseType === "first-principles") {
-    saveFirstPrinciplesWork({ stage: step.stage as FirstPrinciplesStage, values: result.values });
+    const work = saveFirstPrinciplesWork({ stage: step.stage as FirstPrinciplesStage, values: result.values });
+    const text = work.values["Reconstruction"] || work.values["Application"] || Object.values(work.values)[0] || "";
+    registerCard("principle", work.id, `First Principles · ${step.stage === "reduce" ? "Reduce" : "Rebuild"}`, text);
+    const chars = Object.values(result.values).reduce((sum, value) => sum + value.length, 0);
+    const best = recordIfBest("first-principles-depth", chars, "Deepest First Principles pass");
+    if (best.isNewBest) newBests.push(best.best);
   } else if (result.exerciseType === "agora") {
     addAgoraSession({ scenario: result.scenario, durationSeconds: result.durationSeconds, response: result.response });
+    const best = recordIfBest("agora-response-length", result.response.length, "Longest Agora response");
+    if (best.isNewBest) newBests.push(best.best);
   } else if (result.exerciseType === "forum") {
     addForumSession({ challenge: result.challenge, audience: result.audience, format: result.format, response: result.response });
+    const best = recordIfBest("forum-response-length", result.response.length, "Longest Forum response");
+    if (best.isNewBest) newBests.push(best.best);
   } else {
     addRecallCheck({ stage: step.stage as RecallStage, prompt: result.prompt, response: result.response });
     if (step.stage === "observe" && step.sourceRef?.type === "principle") recordObservation(step.sourceRef.id, result.response);
     if (step.stage === "revise" && step.sourceRef?.type === "principle") recordRevision(step.sourceRef.id, result.response);
+    if (result.quality && step.sourceRef) recordRetrievalScoreByRef(step.sourceRef.type, step.sourceRef.id, result.quality as RetrievalQuality);
   }
+
+  pointsAwarded.push(awardPoints(result.exerciseType, `${STAGE_LABELS[step.stage]} step completed`, EXERCISE_POINTS[result.exerciseType], step.id));
 
   const completedAt = new Date().toISOString();
   const nextInDay = all.find((item) => item.date === step.date && item.order === step.order + 1);
@@ -226,6 +277,16 @@ export function completeStep(stepId: string, result: StepResult): void {
     return item;
   });
   saveAllSteps(updated);
+
+  const completedCount = updated.filter((item) => item.status === "completed").length;
+  if (completedCount > 0 && completedCount % STAGE_ORDER.length === 0) {
+    pointsAwarded.push(awardPoints("loop-lap", "Completed a full lap of the loop", POINTS.loopLap));
+  }
+
+  const stats = getStats();
+  pointsAwarded.push(...awardStreakBonusIfDue(stats.currentStreakDays));
+
+  return { pointsAwarded, newBests };
 }
 
 export interface AcademyStats {

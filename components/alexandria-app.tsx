@@ -4,9 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Sidebar, spaceNames } from "@/components/navigation";
 import { UniversalCapture } from "@/components/universal-capture";
 import { PathView } from "@/components/views/path-view";
+import { SettingsView } from "@/components/views/settings-view";
 import { CapabilityView, HallsView, LedgerView, LibraryView, ScriptoriumView } from "@/components/views/library-views";
 import { FunctionalAtriumView } from "@/components/views/functional-atrium";
 import { saveCapture } from "@/lib/capture-store";
+import { awardPoints, POINTS } from "@/lib/points-store";
+import { registerCard } from "@/lib/retrieval-store";
+import { maybeNotify } from "@/lib/growth-store";
 import type { CaptureDraft } from "@/models/domain";
 import { registerBrowserTools, type AlexandriaSpace } from "@/services/mcp/browser-tools";
 
@@ -42,6 +46,8 @@ export default function AlexandriaApp() {
 
   const capture = useCallback((draft: Omit<CaptureDraft, "id" | "createdAt" | "inputSource">) => {
     const item = saveCapture({ ...draft, inputSource: "keyboard" });
+    awardPoints("capture", `Captured a ${item.type.toLowerCase()}`, POINTS.capture, item.id);
+    registerCard("capture", item.id, item.type, item.text);
     window.dispatchEvent(new Event("alexandria:data"));
     setToast(true);
     window.setTimeout(() => setToast(false), 2600);
@@ -59,6 +65,8 @@ export default function AlexandriaApp() {
     window.addEventListener("hashchange", sync);
     return () => window.removeEventListener("hashchange", sync);
   }, []);
+
+  useEffect(() => { maybeNotify(); }, []);
 
   useEffect(() => {
     try {
@@ -88,6 +96,7 @@ export default function AlexandriaApp() {
     agora: pathView,
     forum: pathView,
     academy: <CapabilityView />,
+    settings: <SettingsView />,
   }[active];
 
   return (
