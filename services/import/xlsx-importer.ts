@@ -55,10 +55,13 @@ function mapRow(row: ImportRow, sourceId: string): MappedRow {
   }
 
   if (principle) {
+    const hallTitle = values.hall?.trim().toLowerCase();
+    const hall = hallTitle ? halls.find((item) => item.title.toLowerCase() === hallTitle) : undefined;
     mapped.principle = {
       statement: principle,
       explanation: !text && interpretation ? interpretation : undefined,
       sourceIds: [sourceId],
+      hallIds: hall ? [hall.id] : undefined,
       confidence: 0.6,
       state: "collected",
     };

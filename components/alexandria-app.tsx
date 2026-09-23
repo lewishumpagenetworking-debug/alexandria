@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Sidebar, spaceNames } from "@/components/navigation";
+import { NextActionBar } from "@/components/next-action-bar";
 import { UniversalCapture } from "@/components/universal-capture";
 import { PathView } from "@/components/views/path-view";
 import { SettingsView } from "@/components/views/settings-view";
@@ -102,12 +103,14 @@ export default function AlexandriaApp() {
   return (
     <div className="shell">
       <Sidebar active={active} open={menuOpen} onNavigate={navigate} onCapture={() => setCaptureOpen(true)} />
+      <div className={`sidebar-backdrop${menuOpen ? " open" : ""}`} onClick={() => setMenuOpen(false)} />
       <main className="main">
         <header className="topbar"><button className="mobile-menu" onClick={() => setMenuOpen((value) => !value)} aria-label="Open navigation">☰</button><div className="breadcrumbs">{spaceNames[active]}</div><div className="today">{today}</div></header>
         {view}
       </main>
       <UniversalCapture open={captureOpen} onClose={() => setCaptureOpen(false)} onSave={capture} />
       <div className={`toast${toast ? " show" : ""}`} role="status">Thought preserved for later classification.</div>
+      <NextActionBar active={active} navigate={navigate} />
     </div>
   );
 }
