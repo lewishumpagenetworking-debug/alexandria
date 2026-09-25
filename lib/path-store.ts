@@ -118,7 +118,7 @@ function pickEncounterSource(excludeIds: Set<string>, seedIndex: number): Source
       const dueBonus = card.dueAt <= todayISO() ? 35 : 0;
       const noveltyBonus = (card.engagementCount ?? 0) === 0 ? 45 : 0;
       const repeatPenalty = Math.min(35, (card.engagementCount ?? 0) * 6);
-      const score = freshness + dueBonus + noveltyBonus - repeatPenalty + deterministicJitter(card.id, seedIndex) * 18;
+      const score = freshness + dueBonus + noveltyBonus + (card.priorityWeight ?? 0) - repeatPenalty + deterministicJitter(card.id, seedIndex) * 18;
       return { card, score };
     })
     .sort((a, b) => b.score - a.score);
