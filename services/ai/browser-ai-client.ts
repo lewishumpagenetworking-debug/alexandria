@@ -1,22 +1,59 @@
 import { getSettings } from "@/lib/settings-store";
 
 export interface AIFeedbackRequest {
-  /** What the exercise was (the passage, scenario, or challenge). */
   context: string;
-  /** What the user was asked to do. */
   instruction: string;
-  /** What the user actually wrote. */
   userResponse: string;
 }
 
+export interface AIUsageSummary {
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+const USAGE_KEY = "alexandria-ai-usage-v1";
+const MAX_CONTEXT_CHARS = 5000;
+const MAX_INSTRUCTION_CHARS = 700;
+const MAX_RESPONSE_CHARS = 3500;
+const MAX_OUTPUT_TOKENS = 180;
+
 const SYSTEM_PROMPT =
-  "You are a rigorous but encouraging Socratic tutor inside a personal-development app called Alexandria. " +
-  "Give specific, concrete feedback on the user's reasoning: what's precise, what's borrowed language rather than " +
-  "genuine understanding, what's missing, and one concrete way to sharpen it. Keep it under 150 words. Never invent " +
-  "praise — if the response is weak, say so plainly and say why.";
+  "Socratic evaluator. Judge the user's reasoning against the supplied material. Be precise, not flattering. " +
+  "Reply in at most 90 words using exactly: Verdict, Gap, Next. Do not restate the prompt.";
+
+function clip(value: string, limit: number): string {
+  const clean = value.trim().replace(/\s+/g, " ");
+  return clean.length <= limit ? clean : `${clean.slice(0, limit)}…`;
+}
 
 function buildUserPrompt({ context, instruction, userResponse }: AIFeedbackRequest): string {
-  return `Context: ${context}\n\nInstruction given to the user: ${instruction}\n\nThe user's response:\n${userResponse}`;
+  return `MATERIAL:\n${clip(context, MAX_CONTEXT_CHARS)}\nTASK:\n${clip(instruction, MAX_INSTRUCTION_CHARS)}\nANSWER:\n${clip(userResponse, MAX_RESPONSE_CHARS)}`;
+}
+
+function readUsage(): AIUsageSummary {
+  if (typeof window === "undefined") return { requests: 0, inputTokens: 0, outputTokens: 0 };
+  try {
+    return JSON.parse(localStorage.getItem(USAGE_KEY) || "null") ?? { requests: 0, inputTokens: 0, outputTokens: 0 };
+  } catch {
+    return { requests: 0, inputTokens: 0, outputTokens: 0 };
+  }
+}
+
+function recordUsage(inputTokens = 0, outputTokens = 0) {
+  if (typeof window === "undefined") return;
+  const current = readUsage();
+  const next = {
+    requests: current.requests + 1,
+    inputTokens: current.inputTokens + inputTokens,
+    outputTokens: current.outputTokens + outputTokens,
+  };
+  localStorage.setItem(USAGE_KEY, JSON.stringify(next));
+  window.dispatchEvent(new Event("alexandria:ai-usage"));
+}
+
+export function getAIUsageSummary(): AIUsageSummary {
+  return readUsage();
 }
 
 async function parseErrorMessage(response: Response): Promise<string> {
@@ -35,11 +72,13 @@ async function callOpenAI(apiKey: string, model: string, request: AIFeedbackRequ
     body: JSON.stringify({
       model: model || "gpt-4o-mini",
       messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: buildUserPrompt(request) }],
-      max_tokens: 400,
+      max_tokens: MAX_OUTPUT_TOKENS,
+      temperature: 0.2,
     }),
   });
   if (!response.ok) throw new Error(await parseErrorMessage(response));
   const data = await response.json();
+  recordUsage(data.usage?.prompt_tokens ?? 0, data.usage?.completion_tokens ?? 0);
   return data.choices?.[0]?.message?.content?.trim() || "The model returned no feedback.";
 }
 
@@ -50,20 +89,19 @@ async function callAnthropic(apiKey: string, model: string, request: AIFeedbackR
       "Content-Type": "application/json",
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
-      // Required for the Anthropic API to accept a request originating from a browser page
-      // rather than a server. The key is visible to this browser's devtools either way —
-      // see the Settings page note about what that trade-off means for a static, backend-less app.
       "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
-      model: model || "claude-sonnet-5",
-      max_tokens: 400,
+      model: model || "claude-haiku-4-5",
+      max_tokens: MAX_OUTPUT_TOKENS,
+      temperature: 0.2,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: buildUserPrompt(request) }],
     }),
   });
   if (!response.ok) throw new Error(await parseErrorMessage(response));
   const data = await response.json();
+  recordUsage(data.usage?.input_tokens ?? 0, data.usage?.output_tokens ?? 0);
   return data.content?.[0]?.text?.trim() || "The model returned no feedback.";
 }
 

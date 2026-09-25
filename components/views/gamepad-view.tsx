@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { getDueRetrievals, recordRetrievalScore, type RetrievalCard, type RetrievalQuality } from "@/lib/retrieval-store";
 import { awardPoints, POINTS } from "@/lib/points-store";
+import { getArcadeProgress } from "@/lib/arcade-store";
+import { RecallRally } from "@/components/recall-rally";
 
-type GameMode = "menu" | "quiz" | "quiz-result";
+type GameMode = "menu" | "quiz" | "quiz-result" | "rally";
 
 interface QuizState {
   cards: RetrievalCard[];
@@ -20,9 +22,16 @@ export function GamePadView() {
   const [mode, setMode] = useState<GameMode>("menu");
   const [dueCount, setDueCount] = useState(0);
   const [quiz, setQuiz] = useState<QuizState>({ cards: [], index: 0, revealed: false, scores: [], response: "" });
+  const [arcade, setArcade] = useState(() => getArcadeProgress());
 
   useEffect(() => {
-    setDueCount(getDueRetrievals(1).length > 0 ? getDueRetrievals(100).length : 0);
+    const refresh = () => {
+      setDueCount(getDueRetrievals(1).length > 0 ? getDueRetrievals(100).length : 0);
+      setArcade(getArcadeProgress());
+    };
+    refresh();
+    window.addEventListener("alexandria:data", refresh);
+    return () => window.removeEventListener("alexandria:data", refresh);
   }, []);
 
   function startQuiz() {
@@ -56,6 +65,8 @@ export function GamePadView() {
   const partial = quiz.scores.filter((s) => s === "partial").length;
   const blank = quiz.scores.filter((s) => s === "blank").length;
   const card = quiz.cards[quiz.index];
+
+  if (mode === "rally") return <RecallRally onExit={() => setMode("menu")} />;
 
   if (mode === "quiz" && card) {
     return (
@@ -164,33 +175,53 @@ export function GamePadView() {
             {dueCount > 0 && <button className="small-btn primary" onClick={startQuiz}>Start →</button>}
           </article>
 
-          <article className="card game-card coming-soon">
-            <div className="game-icon">🏓</div>
-            <div>
-              <h3>Recall Rally</h3>
-              <p>Pong-inspired. Win a rally to unlock a knowledge challenge. Correct answers score a point — wrong answers weaken the concept.</p>
-              <span className="coming-soon-badge">Coming soon</span>
-            </div>
-          </article>
+          {(() => {
+            const rally = arcade.unlocks.find((u) => u.id === "rally")!;
+            return <article className={`card game-card${rally.unlocked ? " available" : " locked"}`} onClick={rally.unlocked ? () => setMode("rally") : undefined}>
+              <div className="game-icon">🏓</div>
+              <div>
+                <h3>Recall Rally</h3>
+                <p>{rally.unlocked ? "Playable now. Beat Alexandria at Pong, then retrieve knowledge to earn each point." : rally.requirement}</p>
+                {!rally.unlocked && <span className="coming-soon-badge">{Math.min(rally.current, rally.target)} / {rally.target} knowledge items</span>}
+              </div>
+              {rally.unlocked && <button className="small-btn primary" onClick={() => setMode("rally")}>Play →</button>}
+            </article>;
+          })()}
 
-          <article className="card game-card coming-soon">
-            <div className="game-icon">🏰</div>
-            <div>
-              <h3>The Tower</h3>
-              <p>Climb difficulty floors. Each floor is a knowledge challenge. Fail and you drop back. Reach the top to master a concept permanently.</p>
-              <span className="coming-soon-badge">Coming soon</span>
-            </div>
-          </article>
+          {(() => {
+            const tower = arcade.unlocks.find((u) => u.id === "tower")!;
+            return <article className="card game-card locked">
+              <div className="game-icon">🏰</div>
+              <div>
+                <h3>The Tower</h3>
+                <p>{tower.requirement}</p>
+                <span className="coming-soon-badge">{tower.unlocked ? "Unlocked · mode in development" : "Locked"}</span>
+              </div>
+            </article>;
+          })()}
 
-          <article className="card game-card coming-soon">
-            <div className="game-icon">⚡</div>
-            <div>
-              <h3>Sprint Mode</h3>
-              <p>As many correct recalls as possible in 60 seconds. XP scales with your combo multiplier. Best streak is recorded.</p>
-              <span className="coming-soon-badge">Coming soon</span>
-            </div>
-          </article>
+          {(() => {
+            const sprint = arcade.unlocks.find((u) => u.id === "sprint")!;
+            return <article className="card game-card locked">
+              <div className="game-icon">⚡</div>
+              <div>
+                <h3>Sprint Mode</h3>
+                <p>{sprint.requirement}</p>
+                <span className="coming-soon-badge">{sprint.unlocked ? "Unlocked · mode in development" : `${Math.min(sprint.current, sprint.target)} / ${sprint.target} knowledge items`}</span>
+              </div>
+            </article>;
+          })()}
         </div>
+
+        <article className="card top-gap">
+          <div className="kicker">Achievements</div>
+          <div className="achievement-grid">
+            {arcade.achievements.map((a) => <div key={a.id} className={`achievement${a.unlocked ? " unlocked" : ""}`}>
+              <strong>{a.unlocked ? "◆" : "◇"} {a.name}</strong>
+              <span>{a.description}</span>
+            </div>)}
+          </div>
+        </article>
 
         {dueCount === 0 && (
           <div className="empty-state" style={{ marginTop: 32 }}>

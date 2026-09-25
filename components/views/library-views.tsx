@@ -51,10 +51,13 @@ export function LibraryView() {
   const [studyPhase, setStudyPhase] = useState<StudyPhase>("idle");
   const [studyPoints, setStudyPoints] = useState(0);
   const [studyBests, setStudyBests] = useState<string[]>([]);
+  const [manageLibrary, setManageLibrary] = useState(false);
   useEffect(() => setBooks(loadBooks()), []);
   const shown = books.filter((book) => `${book.title} ${book.author}`.toLowerCase().includes(query.toLowerCase()));
 
   function startStudy() { setStudyPhase("interrogate"); setStudyPoints(0); setStudyBests([]); }
+
+  if (manageLibrary) return <div><div className="content"><button className="action-link back" onClick={() => { setManageLibrary(false); setBooks(loadBooks()); }}>← Back to Library</button></div><LedgerView /></div>;
 
   function advanceStudy(result: Exclude<StepResult, { exerciseType: "recall-check" }>, label: string) {
     if (!selected) return;
@@ -87,11 +90,12 @@ export function LibraryView() {
       <Maturity value={selected.completed ? 7 : 3} />
       <div className="button-row top-gap">
         <button className="small-btn primary" disabled={!canStudy} onClick={startStudy}>▶ Study this book</button>
-        {!canStudy && <span className="voice-note">Add a note first — Notes, from the Reading Ledger</span>}
+        <button className="small-btn" onClick={() => setManageLibrary(true)}>⇪ Add / import notes</button>
+        {!canStudy && <span className="voice-note">Add or import notes first so Alexandria has material to test.</span>}
       </div>
       <Rule />
       <div className="notes-list">
-        {bookHighlights.length === 0 && bookPrinciples.length === 0 && <div className="empty"><strong>No notes yet.</strong><span>Use "Notes" on this book from the Reading Ledger to add highlights, questions, or principles — manually or via spreadsheet.</span></div>}
+        {bookHighlights.length === 0 && bookPrinciples.length === 0 && <div className="empty"><strong>No notes yet.</strong><span>Import a filled Alexandria spreadsheet or add notes manually.</span><div className="top-gap"><button className="small-btn primary" onClick={() => setManageLibrary(true)}>Add / import notes</button></div></div>}
         {bookHighlights.map((highlight) => <div className="note-item" key={highlight.id}><div className="kicker">Highlight{highlight.location ? ` · ${highlight.location}` : ""}</div><p>{highlight.text}</p></div>)}
         {bookPrinciples.map((principle) => <div className="note-item" key={principle.id}><div className="kicker">Principle</div><p>{principle.statement}</p></div>)}
       </div>
@@ -99,7 +103,7 @@ export function LibraryView() {
   }
 
   return <section className="view active"><div className="content"><PageHeader eyebrow="The external memory" title="The Library" intro="Sources are beginnings, not trophies. Follow an idea from encounter through challenge, application, and revision." />
-    <div className="section-tools"><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search books, authors, principles…" aria-label="Search library" /><span className="result-count">{shown.length} sources found</span></div>
+    <div className="section-tools"><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search books, authors, principles…" aria-label="Search library" /><button className="small-btn primary" onClick={() => setManageLibrary(true)}>＋ Add book / import notes</button><span className="result-count">{shown.length} sources found</span></div>
     <div className="source-grid library-shelves">{shown.map((book, index) => <button className="book-card" onClick={() => setSelected(book)} key={book.id}><div className={`folio-cover tone-${index % 4}`}>{book.title}</div><div><span className="type">Book · {book.author}</span><h3>{book.title}</h3><p>{book.currentPage} / {book.totalPages} pages · {getHighlightsForSource(book.id).length} highlights · {getPrinciplesForSource(book.id).length} principles</p><div className="progress"><span style={{ width: `${Math.round(book.currentPage / book.totalPages * 100)}%` }} /></div></div></button>)}</div>
   </div></section>;
 }
@@ -107,17 +111,17 @@ export function LibraryView() {
 export function HallsView() {
   const [selected, setSelected] = useState<(typeof halls)[number] | null>(null);
   const books = loadBooks();
+  const activeHalls = halls.filter((hall) => getPrinciplesForHall(hall.id).length > 0);
   const hallPrinciples = selected ? getPrinciplesForHall(selected.id) : [];
   const bookTitle = (sourceId: string) => books.find((book) => book.id === sourceId)?.title;
 
-  return <section className="view active"><div className="content"><PageHeader eyebrow="Connected disciplines" title="Halls of Knowledge" intro="A principle may enter through one hall and illuminate another. These are perspectives, never prisons." />
-    {selected ? <>
-      <button className="action-link back" onClick={() => setSelected(null)}>← Return to all halls</button>
-      <article className="hall-detail" data-roman={selected.roman}><div className="eyebrow">Hall {selected.roman}</div><h2>{selected.title}</h2><p>{selected.description}</p><div className="hall-ledger"><div><b>{hallPrinciples.length}</b><span>principles tagged here</span></div><div><b>{new Set(hallPrinciples.flatMap((p) => p.sourceIds)).size}</b><span>contributing sources</span></div></div></article>
-      {hallPrinciples.length > 0 ? <div className="notes-list">
-        {hallPrinciples.map((principle) => <div className="note-item" key={principle.id}><div className="kicker">{principle.sourceIds.map(bookTitle).filter(Boolean).join(" · ") || "Mixed sources"}</div><p>{principle.statement}</p></div>)}
-      </div> : <div className="source-grid"><article className="card"><div className="kicker">Governing question</div><h3>What survives when explanation meets contradictory evidence?</h3></article><article className="card"><div className="kicker">Living principle</div><h3>Systems reveal their purpose through what they repeatedly preserve.</h3></article><article className="card"><div className="kicker">Add your own</div><h3>Tag a principle with this Hall from a book's Notes to see it mixed in here.</h3></article></div>}
-    </> : <div className="hall-grid">{halls.map((hall) => <button className="card hall" data-roman={hall.roman} key={hall.id} onClick={() => setSelected(hall)}><div className="count">{getPrinciplesForHall(hall.id).length || hall.count}</div><h3>{hall.title}</h3><p>{hall.description}</p><span className="action-link">Enter hall →</span></button>)}</div>}
+  return <section className="view active"><div className="content"><PageHeader eyebrow="Connected disciplines" title="Knowledge Map" intro="This area is built from your own imported and diagnosed material. Alexandria does not invent knowledge-map content for you." />
+    {activeHalls.length === 0 ? <div className="empty"><strong>Your Knowledge Map is empty.</strong><span>Import notes from a real book, then tag or derive principles during study. Halls appear only when your own material earns a place in them.</span></div> :
+    selected ? <>
+      <button className="action-link back" onClick={() => setSelected(null)}>← Return to Knowledge Map</button>
+      <article className="hall-detail" data-roman={selected.roman}><div className="eyebrow">Hall {selected.roman}</div><h2>{selected.title}</h2><p>{selected.description}</p><div className="hall-ledger"><div><b>{hallPrinciples.length}</b><span>your principles tagged here</span></div><div><b>{new Set(hallPrinciples.flatMap((p) => p.sourceIds)).size}</b><span>your contributing sources</span></div></div></article>
+      <div className="notes-list">{hallPrinciples.map((principle) => <div className="note-item" key={principle.id}><div className="kicker">{principle.sourceIds.map(bookTitle).filter(Boolean).join(" · ") || "Your source"}</div><p>{principle.statement}</p></div>)}</div>
+    </> : <div className="hall-grid">{activeHalls.map((hall) => <button className="card hall" data-roman={hall.roman} key={hall.id} onClick={() => setSelected(hall)}><div className="count">{getPrinciplesForHall(hall.id).length} principles</div><h3>{hall.title}</h3><p>{hall.description}</p><span className="action-link">Open →</span></button>)}</div>}
   </div></section>;
 }
 
@@ -252,7 +256,16 @@ export function LedgerView() {
           <label className="form-span">Principle (optional)<textarea value={manualNote.principle} onChange={(e) => setManualNote({ ...manualNote, principle: e.target.value })} placeholder="A standalone principle this supports…" /></label>
           <div className="form-span modal-actions"><span className="voice-note">Saved straight into {notesBook.title}</span><button className="small-btn primary" disabled={!manualNote.text.trim() && !manualNote.principle.trim()}>Save note</button></div>
         </form> : <>
-          <p className="page-intro">Download the notes template, fill it in offline — one row per highlight, note, or question — then upload it back here.</p>
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="kicker">Recommended import workflow</div>
+            <ol className="import-steps">
+              <li><strong>Download</strong> the Alexandria notes template.</li>
+              <li><strong>Give the template and your raw notes to Claude or GPT</strong> and ask it to place every note into the existing columns without changing the headers.</li>
+              <li><strong>Download the completed .xlsx</strong> from that AI chat.</li>
+              <li><strong>Upload it here</strong>, review the preview, then confirm. Alexandria routes highlights, interpretations, questions, principles and Hall tags into their proper stores.</li>
+            </ol>
+          </div>
+          <p className="page-intro">One row per knowledge item. The spreadsheet is the contract: keep its column names unchanged.</p>
           <div className="button-row"><button type="button" className="small-btn primary" onClick={() => downloadBlob(createNotesTemplate(notesBook), `${notesBook.title.replace(/[^a-z0-9]+/gi, "-")}-notes-template.xlsx`)}>⇩ Download notes template (.xlsx)</button>
             <label className="small-btn file-label">Upload filled notes<input type="file" accept=".xlsx" onChange={handleNotesFile} /></label></div>
           {importError && <p className="saved-note">{importError}</p>}
