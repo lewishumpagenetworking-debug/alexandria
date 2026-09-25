@@ -30,9 +30,9 @@ Rules:
 - Preserve my meaning. Do not fabricate quotes, page numbers, conclusions, or principles.
 - Return the completed file in CSV or XLSX format ready for re-upload into Alexandria.`;
 
-export function ImportNotesWorkspace({ onBack, onComplete }: { onBack: () => void; onComplete: () => void }) {
+export function ImportNotesWorkspace({ onBack, onComplete, initialSourceId = "" }: { onBack: () => void; onComplete: () => void; initialSourceId?: string }) {
   const [books, setBooks] = useState(() => loadBooks());
-  const [selectedId, setSelectedId] = useState("");
+  const [selectedId, setSelectedId] = useState(initialSourceId);
   const [newBook, setNewBook] = useState({ title: "", author: "" });
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
