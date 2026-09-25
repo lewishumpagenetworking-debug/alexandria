@@ -6,7 +6,7 @@ import { getCurrentStep, STAGE_LABELS } from "@/lib/path-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 
 /** Mobile-only fixed bar so "what's next" is always one tap away, not just visible inside the Path screen. */
-export function NextActionBar({ active, navigate }: { active: AlexandriaSpace; navigate: (space: AlexandriaSpace) => void }) {
+export function NextActionBar({ active, navigate, hidden = false }: { active: AlexandriaSpace; navigate: (space: AlexandriaSpace) => void; hidden?: boolean }) {
   const [label, setLabel] = useState("");
 
   useEffect(() => {
@@ -21,7 +21,7 @@ export function NextActionBar({ active, navigate }: { active: AlexandriaSpace; n
     return () => window.removeEventListener("alexandria:data", refresh);
   }, [active]);
 
-  if (active === "learn" || active === "path") return null;
+  if (hidden || active === "learn" || active === "path") return null;
 
   return (
     <button className="next-action-bar" onClick={() => navigate("learn")}>
