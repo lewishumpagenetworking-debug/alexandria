@@ -534,3 +534,38 @@ dialog::backdrop { background: rgba(6, 5, 4, .76); backdrop-filter: blur(4px); }
   .achievement-grid { grid-template-columns: 1fr; }
   .rally-score strong { font-size: 34px; }
 }
+
+
+/* Dedicated book-note import */
+.import-workspace { max-width: 980px; }
+.import-step-card { display: grid; grid-template-columns: 52px 1fr; gap: 20px; border-top: 1px solid var(--line); padding: 28px 0; }
+.import-step-card:first-of-type { border-top: 0; }
+.import-step-card h2 { font: 600 27px/1.15 var(--serif); margin: 0 0 14px; }
+.import-step-number { width: 42px; height: 42px; border: 1px solid var(--bronze); color: var(--bronze-2); display: grid; place-items: center; font: 600 22px var(--serif); }
+.disabled-step { opacity: .46; }
+.import-label { display: block; color: var(--muted); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; max-width: 620px; }
+.import-label select { display: block; width: 100%; margin-top: 6px; background: #171411; border: 1px solid var(--line); color: var(--paper); padding: 12px; text-transform: none; letter-spacing: normal; }
+.import-or { color: var(--muted); font-size: 11px; margin: 16px 0 8px; }
+.compact-form { margin-top: 0; max-width: 720px; }
+.download-link { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.disabled-link { pointer-events: none; opacity: .45; }
+.template-map { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.template-map > div { display: grid; grid-template-columns: 150px 1fr; gap: 14px; padding: 12px 14px; background: #201d18; }
+.template-map strong { color: var(--bronze-2); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.template-map span { color: var(--muted); font-size: 12px; }
+.import-help { padding: 20px; }
+.import-prompt { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; background: #171411; border: 1px solid var(--line); padding: 14px; color: #cfc4ae; font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.import-file-button { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; border: 1px solid var(--bronze); background: var(--bronze); color: #17130d; padding: 12px 16px; font-weight: 700; cursor: pointer; }
+.import-file-button input { display: none; }
+.import-preview { border: 1px solid var(--line); padding: 18px; background: rgba(184,148,82,.04); }
+.import-issues { margin-top: 12px; border-left: 2px solid #c9784f; padding: 8px 12px; color: #cfc4ae; font-size: 12px; }
+.import-success { border: 1px solid var(--bronze); background: rgba(184,148,82,.08); padding: 20px; }
+.import-success h2 { margin-bottom: 8px; }
+
+@media (max-width: 760px) {
+  .import-step-card { grid-template-columns: 1fr; gap: 12px; padding: 22px 0; }
+  .import-step-number { width: 36px; height: 36px; font-size: 19px; }
+  .template-map > div { grid-template-columns: 1fr; gap: 3px; }
+  .import-file-button, .download-link { width: 100%; }
+  .compact-form { grid-template-columns: 1fr; }
+}
