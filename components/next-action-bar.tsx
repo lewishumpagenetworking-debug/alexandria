@@ -21,10 +21,10 @@ export function NextActionBar({ active, navigate }: { active: AlexandriaSpace; n
     return () => window.removeEventListener("alexandria:data", refresh);
   }, [active]);
 
-  if (active === "path") return null;
+  if (active === "learn" || active === "path") return null;
 
   return (
-    <button className="next-action-bar" onClick={() => navigate("path")}>
+    <button className="next-action-bar" onClick={() => navigate("learn")}>
       <span className="next-action-label">{label}</span>
       <span className="next-action-arrow">→</span>
     </button>

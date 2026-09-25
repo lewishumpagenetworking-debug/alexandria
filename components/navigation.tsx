@@ -1,31 +1,47 @@
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 
 export const spaceNames: Record<AlexandriaSpace, string> = {
-  atrium: "The Atrium",
-  library: "The Library",
-  halls: "Halls of Knowledge",
-  ledger: "Reading Ledger",
-  scriptorium: "The Scriptorium",
-  path: "The Path",
-  interrogation: "The Path",
-  principles: "The Path",
-  agora: "The Path",
-  forum: "The Path",
-  academy: "Academy · Capability Map",
+  home: "Home",
+  library: "Library",
+  learn: "Learn",
+  notes: "Ideas & Notes",
+  review: "Review",
+  "knowledge-map": "Knowledge Map",
+  apply: "Apply",
+  tasks: "Tasks",
+  progress: "Progress",
+  gamepad: "Game Pad",
   settings: "Settings",
+  // Legacy gated routes
+  atrium: "Home",
+  path: "Learn",
+  halls: "Knowledge Map",
+  ledger: "Library",
+  scriptorium: "Ideas & Notes",
+  academy: "Progress",
+  interrogation: "Learn",
+  principles: "Learn",
+  agora: "Learn",
+  forum: "Learn",
 };
 
-const librarySpaces: Array<[AlexandriaSpace, string, string]> = [
-  ["atrium", "◇", "The Atrium"],
+const dailySpaces: Array<[AlexandriaSpace, string, string]> = [
+  ["home", "⌂", "Home"],
   ["library", "▤", "Library"],
-  ["halls", "Ⅱ", "Halls of Knowledge"],
-  ["ledger", "◫", "Reading Ledger"],
-  ["scriptorium", "✦", "Scriptorium"],
+  ["learn", "→", "Learn"],
+  ["notes", "✦", "Ideas & Notes"],
+  ["review", "↺", "Review"],
 ];
 
-const academySpaces: Array<[AlexandriaSpace, string, string]> = [
-  ["path", "→", "The Path"],
-  ["academy", "◇", "Capability Map"],
+const knowledgeSpaces: Array<[AlexandriaSpace, string, string]> = [
+  ["knowledge-map", "Ⅱ", "Knowledge Map"],
+  ["apply", "◉", "Apply"],
+  ["tasks", "☐", "Tasks"],
+];
+
+const trackSpaces: Array<[AlexandriaSpace, string, string]> = [
+  ["progress", "◇", "Progress"],
+  ["gamepad", "▶", "Game Pad"],
 ];
 
 export function Sidebar({ active, open, onNavigate, onCapture }: {
@@ -34,11 +50,13 @@ export function Sidebar({ active, open, onNavigate, onCapture }: {
   onNavigate: (space: AlexandriaSpace) => void;
   onCapture: () => void;
 }) {
-  const group = (label: string, items: typeof librarySpaces) => (
+  const effectiveActive = (active === "atrium" ? "home" : active === "path" ? "learn" : active === "halls" ? "knowledge-map" : active === "ledger" ? "library" : active === "scriptorium" ? "notes" : active === "academy" ? "progress" : active) as AlexandriaSpace;
+
+  const group = (label: string, items: typeof dailySpaces) => (
     <>
       <div className="nav-label">{label}</div>
       {items.map(([id, sigil, title]) => (
-        <button key={id} className={active === id ? "active" : ""} onClick={() => onNavigate(id)}>
+        <button key={id} className={effectiveActive === id ? "active" : ""} onClick={() => onNavigate(id)}>
           <span className="sigil">{sigil}</span>{title}
         </button>
       ))}
@@ -47,13 +65,14 @@ export function Sidebar({ active, open, onNavigate, onCapture }: {
 
   return (
     <aside className={`sidebar${open ? " open" : ""}`}>
-      <div className="brand"><div className="brand-mark">A</div><div><strong>ALEXANDRIA</strong><small>Library · Academy</small></div></div>
+      <div className="brand"><div className="brand-mark">A</div><div><strong>ALEXANDRIA</strong><small>Knowledge OS</small></div></div>
       <nav className="nav" aria-label="Primary navigation">
-        {group("The Library", librarySpaces)}
-        {group("The Academy", academySpaces)}
+        {group("Daily", dailySpaces)}
+        {group("Knowledge", knowledgeSpaces)}
+        {group("Track", trackSpaces)}
       </nav>
-      <button className="capture-btn" onClick={onCapture}>＋ Capture a thought</button>
-      <button className={`settings-btn${active === "settings" ? " active" : ""}`} onClick={() => onNavigate("settings")}><span className="sigil">⚙</span>Settings</button>
+      <button className="capture-btn" onClick={onCapture}>＋ Capture idea</button>
+      <button className={`settings-btn${effectiveActive === "settings" ? " active" : ""}`} onClick={() => onNavigate("settings")}><span className="sigil">⚙</span>Settings</button>
     </aside>
   );
 }
