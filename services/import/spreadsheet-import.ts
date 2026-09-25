@@ -9,6 +9,7 @@ export const spreadsheetColumns = [
   "interpretation",
   "principle",
   "hall",
+  "priority",
 ] as const;
 
 export interface ImportRow {
