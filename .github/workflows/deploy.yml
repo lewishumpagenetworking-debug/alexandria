@@ -11,7 +11,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: alexandria-pages-app
   cancel-in-progress: true
 
 jobs:
@@ -28,6 +28,7 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./out
+
   deploy:
     environment:
       name: github-pages
@@ -35,6 +36,17 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to GitHub Pages
+      # The repository is currently also configured for GitHub's automatic
+      # branch/Jekyll Pages build. That generated deployment renders README.md
+      # and has been finishing a few seconds after this app deployment,
+      # overwriting Alexandria. Wait long enough for that legacy deployment to
+      # finish, then publish the real Next.js export last.
+      #
+      # Once Pages > Build and deployment > Source is switched to
+      # "GitHub Actions", this delay can be removed.
+      - name: Avoid legacy Pages deployment race
+        run: sleep 90
+
+      - name: Deploy Alexandria app to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
