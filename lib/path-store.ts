@@ -412,3 +412,13 @@ export function rotateStepSource(stepId: string): PathStep | null {
   saveAllSteps(all.map((item) => item.id === stepId ? updatedStep : item));
   return updatedStep;
 }
+
+
+export function setStepSource(stepId: string, sourceRef: SourceRef): PathStep | null {
+  const all = getAllSteps();
+  const step = all.find((item) => item.id === stepId);
+  if (!step) return null;
+  const updatedStep = { ...step, sourceRef: registerAndReturn(sourceRef) };
+  saveAllSteps(all.map((item) => item.id === stepId ? updatedStep : item));
+  return updatedStep;
+}
