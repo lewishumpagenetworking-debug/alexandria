@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { capabilityEvidence, halls } from "@/data/mock-data";
 import { loadBooks, loadLogs, saveBooks, saveLogs, seedBooks, uid, type ReadingLog, type StoredBook } from "@/lib/application-store";
+import { addHighlight, getHighlightsForSource, getPrinciplesForHall, getPrinciplesForSource } from "@/lib/library-notes-store";
 import { awardPoints, POINTS } from "@/lib/points-store";
+import { recordSessionResult, type StepResult } from "@/lib/path-store";
 import { registerCard } from "@/lib/retrieval-store";
 import { commitRows, createNotesTemplate, downloadBlob, xlsxImporter, type ImportSummary } from "@/services/import/xlsx-importer";
-import type { ImportPreview } from "@/services/import/spreadsheet-import";
+import type { ImportPreview, ImportRow } from "@/services/import/spreadsheet-import";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
+import { AgoraView, FirstPrinciplesView, ForumView, InterrogationView } from "@/components/views/academy-views";
 import { PageHeader, Rule } from "@/components/page-header";
 
 const maturity = ["Collected", "Understood", "Interrogated", "Reduced", "Rebuilt", "Applied", "Tested", "Integrated"];
@@ -38,33 +41,83 @@ export function AtriumView({ navigate }: { navigate: (space: AlexandriaSpace) =>
   </section>;
 }
 
+type StudyPhase = "idle" | "interrogate" | "reduce" | "agora" | "forum" | "done";
+const STUDY_NEXT: Record<StudyPhase, StudyPhase> = { idle: "idle", interrogate: "reduce", reduce: "agora", agora: "forum", forum: "done", done: "done" };
+
 export function LibraryView() {
   const [books, setBooks] = useState(seedBooks);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<StoredBook | null>(null);
+  const [studyPhase, setStudyPhase] = useState<StudyPhase>("idle");
+  const [studyPoints, setStudyPoints] = useState(0);
+  const [studyBests, setStudyBests] = useState<string[]>([]);
   useEffect(() => setBooks(loadBooks()), []);
   const shown = books.filter((book) => `${book.title} ${book.author}`.toLowerCase().includes(query.toLowerCase()));
-  if (selected) return <section className="view active"><div className="content"><button className="action-link back" onClick={() => setSelected(null)}>← Return to the Library</button><div className="source-hero"><div className="folio-cover">{selected.title}</div><div><div className="eyebrow">Source · Book</div><h1 className="page-title">{selected.title}</h1><p className="page-intro">{selected.author} · {selected.currentPage} of {selected.totalPages} pages · {selected.principles} extracted principles</p><div className="progress"><span style={{ width: `${Math.round(selected.currentPage / selected.totalPages * 100)}%` }} /></div></div></div><Maturity value={selected.completed ? 7 : 3} /><Rule /><div className="knowledge-chain">{[
-    ["Highlights", selected.highlights.length ? selected.highlights.join(" · ") : "Explanation is not prediction; it tells us why reality could not easily be otherwise."],
-    ["Interpretation", "Good explanations survive criticism because their details are constrained by reality."],
-    ["Interrogation", "What evidence would show that this explanation is merely adaptable storytelling?"],
-    ["First principle", "Error correction is more valuable than authority when knowledge is incomplete."],
-    ["Reconstructed principle", "Design decisions so error can be discovered early and corrected cheaply."],
-    ["Connections", "Scientific method · organisational feedback · option value"],
-    ["Application", "Run a reversible pricing test before committing the annual plan."],
-    ["Feedback", "The test revealed a segment distinction the original model ignored."],
-    ["Revision", "Reversibility is useful only when the experiment produces decision-relevant evidence."],
-  ].map(([label, text]) => <article className="chain-item" key={label}><div>{label}</div><p>{text}</p></article>)}</div></div></section>;
+
+  function startStudy() { setStudyPhase("interrogate"); setStudyPoints(0); setStudyBests([]); }
+
+  function advanceStudy(result: Exclude<StepResult, { exerciseType: "recall-check" }>, label: string) {
+    if (!selected) return;
+    const outcome = recordSessionResult(result, `${label} · ${selected.title}`);
+    setStudyPoints((points) => points + outcome.pointsAwarded.reduce((sum, event) => sum + event.points, 0));
+    if (outcome.newBests.length) setStudyBests((bests) => [...bests, ...outcome.newBests.map((best) => best.label)]);
+    setStudyPhase((phase) => STUDY_NEXT[phase]);
+  }
+
+  if (selected) {
+    const bookHighlights = getHighlightsForSource(selected.id);
+    const bookPrinciples = getPrinciplesForSource(selected.id);
+    const canStudy = bookHighlights.length > 0 || bookPrinciples.length > 0;
+    const passage = bookHighlights[0]
+      ? { text: bookHighlights[0].text, source: selected.title }
+      : bookPrinciples[0] ? { text: bookPrinciples[0].statement, source: selected.title } : undefined;
+
+    if (studyPhase !== "idle") return <section className="view active"><div className="content">
+      <button className="action-link back" onClick={() => setStudyPhase("idle")}>← Exit study session</button>
+      {studyPhase === "interrogate" && <InterrogationView key="study-interrogate" passage={passage} onComplete={(result) => advanceStudy(result, "Interrogate")} />}
+      {studyPhase === "reduce" && <FirstPrinciplesView key="study-reduce" stage="reduce" onComplete={(result) => advanceStudy(result, "Reduce")} />}
+      {studyPhase === "agora" && <AgoraView key="study-agora" onComplete={(result) => advanceStudy(result, "Connect")} />}
+      {studyPhase === "forum" && <ForumView key="study-forum" onComplete={(result) => advanceStudy(result, "Articulate")} />}
+      {studyPhase === "done" && <article className="card completion study-loop-card"><div className="seal">✓</div><div><div className="kicker">Study session complete</div><h2>{selected.title}</h2><p className="meta">{studyPoints} points earned{studyBests.length ? ` · New record${studyBests.length > 1 ? "s" : ""}: ${studyBests.join(", ")}` : ""}.</p><button className="small-btn primary" onClick={() => setStudyPhase("idle")}>Return to {selected.title}</button></div></article>}
+    </div></section>;
+
+    return <section className="view active"><div className="content">
+      <button className="action-link back" onClick={() => setSelected(null)}>← Return to the Library</button>
+      <div className="source-hero"><div className="folio-cover">{selected.title}</div><div><div className="eyebrow">Source · Book</div><h1 className="page-title">{selected.title}</h1><p className="page-intro">{selected.author} · {selected.currentPage} of {selected.totalPages} pages · {bookHighlights.length} highlights · {bookPrinciples.length} principles</p><div className="progress"><span style={{ width: `${Math.round(selected.currentPage / selected.totalPages * 100)}%` }} /></div></div></div>
+      <Maturity value={selected.completed ? 7 : 3} />
+      <div className="button-row top-gap">
+        <button className="small-btn primary" disabled={!canStudy} onClick={startStudy}>▶ Study this book</button>
+        {!canStudy && <span className="voice-note">Add a note first — Notes, from the Reading Ledger</span>}
+      </div>
+      <Rule />
+      <div className="notes-list">
+        {bookHighlights.length === 0 && bookPrinciples.length === 0 && <div className="empty"><strong>No notes yet.</strong><span>Use "Notes" on this book from the Reading Ledger to add highlights, questions, or principles — manually or via spreadsheet.</span></div>}
+        {bookHighlights.map((highlight) => <div className="note-item" key={highlight.id}><div className="kicker">Highlight{highlight.location ? ` · ${highlight.location}` : ""}</div><p>{highlight.text}</p></div>)}
+        {bookPrinciples.map((principle) => <div className="note-item" key={principle.id}><div className="kicker">Principle</div><p>{principle.statement}</p></div>)}
+      </div>
+    </div></section>;
+  }
+
   return <section className="view active"><div className="content"><PageHeader eyebrow="The external memory" title="The Library" intro="Sources are beginnings, not trophies. Follow an idea from encounter through challenge, application, and revision." />
     <div className="section-tools"><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search books, authors, principles…" aria-label="Search library" /><span className="result-count">{shown.length} sources found</span></div>
-    <div className="source-grid library-shelves">{shown.map((book, index) => <button className="book-card" onClick={() => setSelected(book)} key={book.id}><div className={`folio-cover tone-${index % 4}`}>{book.title}</div><div><span className="type">Book · {book.author}</span><h3>{book.title}</h3><p>{book.currentPage} / {book.totalPages} pages · {book.highlights.length + (index % 5 + 2)} highlights · {book.principles} principles</p><div className="progress"><span style={{ width: `${Math.round(book.currentPage / book.totalPages * 100)}%` }} /></div></div></button>)}</div>
+    <div className="source-grid library-shelves">{shown.map((book, index) => <button className="book-card" onClick={() => setSelected(book)} key={book.id}><div className={`folio-cover tone-${index % 4}`}>{book.title}</div><div><span className="type">Book · {book.author}</span><h3>{book.title}</h3><p>{book.currentPage} / {book.totalPages} pages · {getHighlightsForSource(book.id).length} highlights · {getPrinciplesForSource(book.id).length} principles</p><div className="progress"><span style={{ width: `${Math.round(book.currentPage / book.totalPages * 100)}%` }} /></div></div></button>)}</div>
   </div></section>;
 }
 
 export function HallsView() {
   const [selected, setSelected] = useState<(typeof halls)[number] | null>(null);
+  const books = loadBooks();
+  const hallPrinciples = selected ? getPrinciplesForHall(selected.id) : [];
+  const bookTitle = (sourceId: string) => books.find((book) => book.id === sourceId)?.title;
+
   return <section className="view active"><div className="content"><PageHeader eyebrow="Connected disciplines" title="Halls of Knowledge" intro="A principle may enter through one hall and illuminate another. These are perspectives, never prisons." />
-    {selected ? <><button className="action-link back" onClick={() => setSelected(null)}>← Return to all halls</button><article className="hall-detail" data-roman={selected.roman}><div className="eyebrow">Hall {selected.roman}</div><h2>{selected.title}</h2><p>{selected.description}</p><div className="hall-ledger"><div><b>{selected.count.split(" · ")[0]}</b><span>in active circulation</span></div><div><b>6 active questions</b><span>awaiting synthesis</span></div><div><b>3 additions</b><span>within the last fortnight</span></div></div></article><div className="source-grid"><article className="card"><div className="kicker">Governing question</div><h3>What survives when explanation meets contradictory evidence?</h3></article><article className="card"><div className="kicker">Living principle</div><h3>Systems reveal their purpose through what they repeatedly preserve.</h3></article><article className="card"><div className="kicker">Related sources</div><h3>{selected.title === "Natural Philosophy" ? "Cosmos · The Selfish Gene · A Brief History of Time" : "Thinking, Fast and Slow · Superforecasting · Meditations"}</h3></article></div></> : <div className="hall-grid">{halls.map((hall) => <button className="card hall" data-roman={hall.roman} key={hall.id} onClick={() => setSelected(hall)}><div className="count">{hall.count}</div><h3>{hall.title}</h3><p>{hall.description}</p><span className="action-link">Enter hall →</span></button>)}</div>}
+    {selected ? <>
+      <button className="action-link back" onClick={() => setSelected(null)}>← Return to all halls</button>
+      <article className="hall-detail" data-roman={selected.roman}><div className="eyebrow">Hall {selected.roman}</div><h2>{selected.title}</h2><p>{selected.description}</p><div className="hall-ledger"><div><b>{hallPrinciples.length}</b><span>principles tagged here</span></div><div><b>{new Set(hallPrinciples.flatMap((p) => p.sourceIds)).size}</b><span>contributing sources</span></div></div></article>
+      {hallPrinciples.length > 0 ? <div className="notes-list">
+        {hallPrinciples.map((principle) => <div className="note-item" key={principle.id}><div className="kicker">{principle.sourceIds.map(bookTitle).filter(Boolean).join(" · ") || "Mixed sources"}</div><p>{principle.statement}</p></div>)}
+      </div> : <div className="source-grid"><article className="card"><div className="kicker">Governing question</div><h3>What survives when explanation meets contradictory evidence?</h3></article><article className="card"><div className="kicker">Living principle</div><h3>Systems reveal their purpose through what they repeatedly preserve.</h3></article><article className="card"><div className="kicker">Add your own</div><h3>Tag a principle with this Hall from a book's Notes to see it mixed in here.</h3></article></div>}
+    </> : <div className="hall-grid">{halls.map((hall) => <button className="card hall" data-roman={hall.roman} key={hall.id} onClick={() => setSelected(hall)}><div className="count">{getPrinciplesForHall(hall.id).length || hall.count}</div><h3>{hall.title}</h3><p>{hall.description}</p><span className="action-link">Enter hall →</span></button>)}</div>}
   </div></section>;
 }
 
@@ -86,12 +139,29 @@ export function LedgerView() {
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [entryMode, setEntryMode] = useState<"manual" | "upload">("manual");
+  const [manualNote, setManualNote] = useState({ record_type: "highlight", text: "", interpretation: "", principle: "", hall: "" });
   const notesOpen = notesBook !== null || notesBookOpenIntent;
   useEffect(() => { if (notesOpen && !notesDialog.current?.open) notesDialog.current?.showModal(); if (!notesOpen && notesDialog.current?.open) notesDialog.current.close(); }, [notesOpen]);
 
   function closeNotes() {
     setNotesBook(null); setNotesBookOpenIntent(false); setNewBookForm({ title: "", author: "" });
     setImportPreview(null); setImportSummary(null); setImportError(null);
+    setEntryMode("manual"); setManualNote({ record_type: "highlight", text: "", interpretation: "", principle: "", hall: "" });
+  }
+
+  function saveManualNote(event: React.FormEvent) {
+    event.preventDefault();
+    if (!notesBook || (!manualNote.text.trim() && !manualNote.principle.trim())) return;
+    const row: ImportRow = { rowNumber: 1, values: {
+      record_type: manualNote.record_type, text: manualNote.text.trim() || undefined,
+      interpretation: manualNote.interpretation.trim() || undefined, principle: manualNote.principle.trim() || undefined,
+      hall: manualNote.hall || undefined,
+    } };
+    const summary = commitRows([row], { sourceId: notesBook.id, sourceTitle: notesBook.title });
+    setImportSummary(summary);
+    setManualNote({ record_type: "highlight", text: "", interpretation: "", principle: "", hall: "" });
+    setBooks(loadBooks());
   }
 
   function startNewBookUpload() { setNotesBookOpenIntent(true); }
@@ -140,10 +210,12 @@ export function LedgerView() {
     }
     if (modal === "highlight" && form.highlight.trim()) {
       const book = books.find((item) => item.id === selectedId);
-      const index = book?.highlights.length ?? 0;
       persist(books.map((item) => item.id === selectedId ? { ...item, highlights: [...item.highlights, form.highlight.trim()] } : item));
       awardPoints("highlight", "Added a highlight", POINTS.highlight);
-      if (book) registerCard("highlight", `${book.id}-${index}`, book.title, form.highlight.trim());
+      if (book) {
+        const highlight = addHighlight({ sourceId: book.id, text: form.highlight.trim() });
+        registerCard("highlight", highlight.id, book.title, highlight.text);
+      }
     }
     setForm({ title: "", author: "", page: "", total: "", pages: "", minutes: "", highlight: "" }); setModal(null);
   }
@@ -167,20 +239,34 @@ export function LedgerView() {
         <label>Author<input value={newBookForm.author} onChange={(e) => setNewBookForm({ ...newBookForm, author: e.target.value })} /></label>
         <div className="form-span modal-actions"><span className="voice-note">Creates the book, then gives you the notes template</span><button className="small-btn primary">Continue →</button></div>
       </form> : <>
-        <p className="page-intro">Download the notes template, fill it in offline — one row per highlight, note, or question — then upload it back here.</p>
-        <div className="button-row"><button type="button" className="small-btn primary" onClick={() => downloadBlob(createNotesTemplate(notesBook), `${notesBook.title.replace(/[^a-z0-9]+/gi, "-")}-notes-template.xlsx`)}>⇩ Download notes template (.xlsx)</button>
-          <label className="small-btn file-label">Upload filled notes<input type="file" accept=".xlsx" onChange={handleNotesFile} /></label></div>
-        {importError && <p className="saved-note">{importError}</p>}
-        {importPreview && <div className="top-gap">
-          <p className="meta">{importPreview.rows.length} rows read{importPreview.issues.length ? ` · ${importPreview.issues.length} will be skipped (no text or principle)` : ""}.</p>
-          <div className="feedback-grid">
-            <article className="diag"><strong>Highlights</strong><span>{importPreview.mapped.filter((item) => "capturedAt" in item).length}</span></article>
-            <article className="diag"><strong>Principles</strong><span>{importPreview.mapped.filter((item) => "statement" in item).length}</span></article>
-            <article className="diag"><strong>Interpretations</strong><span>{importPreview.mapped.filter((item) => !("capturedAt" in item) && !("statement" in item)).length}</span></article>
-          </div>
-          <button type="button" className="small-btn primary top-gap" onClick={confirmImport}>Confirm import</button>
-        </div>}
-        {importSummary && <p className="saved-note">Imported {importSummary.highlights} highlights, {importSummary.principles} principles, {importSummary.interpretations} interpretations, and {importSummary.questions} questions into {notesBook.title}.</p>}
+        <div className="entry-toggle">
+          <button type="button" className={`pill${entryMode === "manual" ? " active" : ""}`} onClick={() => setEntryMode("manual")}>Add manually</button>
+          <button type="button" className={`pill${entryMode === "upload" ? " active" : ""}`} onClick={() => setEntryMode("upload")}>Upload spreadsheet</button>
+        </div>
+
+        {entryMode === "manual" ? <form onSubmit={saveManualNote} className="form-grid">
+          <label>Type<select value={manualNote.record_type} onChange={(e) => setManualNote({ ...manualNote, record_type: e.target.value })}><option value="highlight">Highlight / note</option><option value="question">Question</option></select></label>
+          <label>Hall (optional)<select value={manualNote.hall} onChange={(e) => setManualNote({ ...manualNote, hall: e.target.value })}><option value="">—</option>{halls.map((hall) => <option key={hall.id} value={hall.title}>{hall.title}</option>)}</select></label>
+          <label className="form-span">Text<textarea value={manualNote.text} onChange={(e) => setManualNote({ ...manualNote, text: e.target.value })} placeholder="The passage, note, or question…" /></label>
+          <label className="form-span">Interpretation (optional)<textarea value={manualNote.interpretation} onChange={(e) => setManualNote({ ...manualNote, interpretation: e.target.value })} placeholder="What you think it means…" /></label>
+          <label className="form-span">Principle (optional)<textarea value={manualNote.principle} onChange={(e) => setManualNote({ ...manualNote, principle: e.target.value })} placeholder="A standalone principle this supports…" /></label>
+          <div className="form-span modal-actions"><span className="voice-note">Saved straight into {notesBook.title}</span><button className="small-btn primary" disabled={!manualNote.text.trim() && !manualNote.principle.trim()}>Save note</button></div>
+        </form> : <>
+          <p className="page-intro">Download the notes template, fill it in offline — one row per highlight, note, or question — then upload it back here.</p>
+          <div className="button-row"><button type="button" className="small-btn primary" onClick={() => downloadBlob(createNotesTemplate(notesBook), `${notesBook.title.replace(/[^a-z0-9]+/gi, "-")}-notes-template.xlsx`)}>⇩ Download notes template (.xlsx)</button>
+            <label className="small-btn file-label">Upload filled notes<input type="file" accept=".xlsx" onChange={handleNotesFile} /></label></div>
+          {importError && <p className="saved-note">{importError}</p>}
+          {importPreview && <div className="top-gap">
+            <p className="meta">{importPreview.rows.length} rows read{importPreview.issues.length ? ` · ${importPreview.issues.length} will be skipped (no text or principle)` : ""}.</p>
+            <div className="feedback-grid">
+              <article className="diag"><strong>Highlights</strong><span>{importPreview.mapped.filter((item) => "capturedAt" in item).length}</span></article>
+              <article className="diag"><strong>Principles</strong><span>{importPreview.mapped.filter((item) => "statement" in item).length}</span></article>
+              <article className="diag"><strong>Interpretations</strong><span>{importPreview.mapped.filter((item) => !("capturedAt" in item) && !("statement" in item)).length}</span></article>
+            </div>
+            <button type="button" className="small-btn primary top-gap" onClick={confirmImport}>Confirm import</button>
+          </div>}
+        </>}
+        {importSummary && <p className="saved-note top-gap">Imported {importSummary.highlights} highlights, {importSummary.principles} principles, {importSummary.interpretations} interpretations, and {importSummary.questions} questions into {notesBook.title}.</p>}
       </>}
     </div></dialog>
   </div></section>;

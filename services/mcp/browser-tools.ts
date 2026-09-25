@@ -1,6 +1,15 @@
 import type { CaptureDraft } from "@/models/domain";
 
-export type AlexandriaSpace = "atrium" | "library" | "halls" | "ledger" | "scriptorium" | "path" | "interrogation" | "principles" | "agora" | "forum" | "academy" | "settings";
+export type AlexandriaSpace =
+  // Primary nav (new names)
+  | "home" | "library" | "learn" | "notes" | "review"
+  // Knowledge nav
+  | "knowledge-map" | "apply" | "tasks"
+  // Track nav
+  | "progress" | "gamepad" | "settings"
+  // Legacy routes (all gated → new equivalents)
+  | "atrium" | "path" | "halls" | "ledger" | "scriptorium" | "academy"
+  | "interrogation" | "principles" | "agora" | "forum";
 
 interface BrowserMCPContext {
   registerTool(tool: {

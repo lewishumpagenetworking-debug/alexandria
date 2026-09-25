@@ -232,11 +232,16 @@ const EXERCISE_POINTS: Record<ExerciseType, number> = {
   forum: POINTS.forum,
 };
 
-export function completeStep(stepId: string, result: StepResult): CompletionOutcome {
-  const all = getAllSteps();
-  const step = all.find((item) => item.id === stepId);
-  if (!step || step.status === "completed") return { pointsAwarded: [], newBests: [] };
-
+/**
+ * Persists an exercise result (session record + points + personal bests) without any dependency
+ * on a PathStep. Shared by the daily Path (completeStep) and any on-demand session, such as a
+ * per-book study loop, so the points/bests logic never has to be duplicated.
+ */
+export function recordSessionResult(
+  result: Exclude<StepResult, { exerciseType: "recall-check" }>,
+  exerciseLabel: string,
+  firstPrinciplesStage: FirstPrinciplesStage = "reduce"
+): CompletionOutcome {
   const pointsAwarded: PointEvent[] = [];
   const newBests: PersonalBest[] = [];
 
@@ -246,9 +251,9 @@ export function completeStep(stepId: string, result: StepResult): CompletionOutc
     const best = recordIfBest("interrogation-depth", chars, "Longest Interrogation reconstruction");
     if (best.isNewBest) newBests.push(best.best);
   } else if (result.exerciseType === "first-principles") {
-    const work = saveFirstPrinciplesWork({ stage: step.stage as FirstPrinciplesStage, values: result.values });
+    const work = saveFirstPrinciplesWork({ stage: firstPrinciplesStage, values: result.values });
     const text = work.values["Reconstruction"] || work.values["Application"] || Object.values(work.values)[0] || "";
-    registerCard("principle", work.id, `First Principles · ${step.stage === "reduce" ? "Reduce" : "Rebuild"}`, text);
+    registerCard("principle", work.id, `First Principles · ${firstPrinciplesStage === "reduce" ? "Reduce" : "Rebuild"}`, text);
     const chars = Object.values(result.values).reduce((sum, value) => sum + value.length, 0);
     const best = recordIfBest("first-principles-depth", chars, "Deepest First Principles pass");
     if (best.isNewBest) newBests.push(best.best);
@@ -256,18 +261,33 @@ export function completeStep(stepId: string, result: StepResult): CompletionOutc
     addAgoraSession({ scenario: result.scenario, durationSeconds: result.durationSeconds, response: result.response });
     const best = recordIfBest("agora-response-length", result.response.length, "Longest Agora response");
     if (best.isNewBest) newBests.push(best.best);
-  } else if (result.exerciseType === "forum") {
+  } else {
     addForumSession({ challenge: result.challenge, audience: result.audience, format: result.format, response: result.response });
     const best = recordIfBest("forum-response-length", result.response.length, "Longest Forum response");
     if (best.isNewBest) newBests.push(best.best);
-  } else {
+  }
+
+  pointsAwarded.push(awardPoints(result.exerciseType, `${exerciseLabel} completed`, EXERCISE_POINTS[result.exerciseType]));
+  return { pointsAwarded, newBests };
+}
+
+export function completeStep(stepId: string, result: StepResult): CompletionOutcome {
+  const all = getAllSteps();
+  const step = all.find((item) => item.id === stepId);
+  if (!step || step.status === "completed") return { pointsAwarded: [], newBests: [] };
+
+  let outcome: CompletionOutcome;
+  if (result.exerciseType === "recall-check") {
     addRecallCheck({ stage: step.stage as RecallStage, prompt: result.prompt, response: result.response });
     if (step.stage === "observe" && step.sourceRef?.type === "principle") recordObservation(step.sourceRef.id, result.response);
     if (step.stage === "revise" && step.sourceRef?.type === "principle") recordRevision(step.sourceRef.id, result.response);
     if (result.quality && step.sourceRef) recordRetrievalScoreByRef(step.sourceRef.type, step.sourceRef.id, result.quality as RetrievalQuality);
+    outcome = { pointsAwarded: [awardPoints("recall-check", `${STAGE_LABELS[step.stage]} step completed`, POINTS.recallCheck, step.id)], newBests: [] };
+  } else {
+    outcome = recordSessionResult(result, STAGE_LABELS[step.stage], step.stage as FirstPrinciplesStage);
   }
-
-  pointsAwarded.push(awardPoints(result.exerciseType, `${STAGE_LABELS[step.stage]} step completed`, EXERCISE_POINTS[result.exerciseType], step.id));
+  const pointsAwarded = outcome.pointsAwarded;
+  const newBests = outcome.newBests;
 
   const completedAt = new Date().toISOString();
   const nextInDay = all.find((item) => item.date === step.date && item.order === step.order + 1);

@@ -49,3 +49,5 @@ export function addPrinciple(input: Omit<Principle, "id">): Principle {
 }
 
 export const getPrinciplesForSource = (sourceId: string) => listPrinciples().filter((item) => item.sourceIds.includes(sourceId));
+
+export const getPrinciplesForHall = (hallId: string) => listPrinciples().filter((item) => item.hallIds?.includes(hallId));

@@ -55,6 +55,8 @@ export interface Principle {
   statement: string;
   explanation?: string;
   sourceIds: EntityId[];
+  /** Which Halls of Knowledge this principle belongs to — a principle can cross disciplines. */
+  hallIds?: EntityId[];
   confidence: number;
   state: KnowledgeState;
   revisedAt?: ISODateString;
