@@ -11,7 +11,7 @@ import { spreadsheetColumns, type ImportIssue, type ImportPreview, type ImportRo
 /** Generates the downloadable .xlsx template for a book's notes, pre-filled with its title/author. */
 export function createNotesTemplate(book: { title: string; author: string }): Blob {
   const starterRows = Array.from({ length: 25 }, () => ({
-    record_type: "", source_title: book.title, source_creator: book.author, location: "", text: "", interpretation: "", principle: "", hall: "",
+    record_type: "", source_title: book.title, source_creator: book.author, location: "", text: "", interpretation: "", principle: "", hall: "", priority: "",
   }));
   const notesSheet = XLSX.utils.json_to_sheet(starterRows, { header: [...spreadsheetColumns] });
   const legendSheet = XLSX.utils.aoa_to_sheet([
@@ -23,6 +23,7 @@ export function createNotesTemplate(book: { title: string; author: string }): Bl
     ["interpretation", "What you think it means, in your own words (optional)"],
     ["principle", "A standalone principle this row supports — fill this with or without 'text' (optional)"],
     ["hall", "Which Hall of Knowledge this belongs to (optional)"],
+    ["priority", "Optional 1-5 importance score. 5 = unusually valuable or broadly applicable. Leave blank if unsure."],
     [], ["Halls:"], ...halls.map((hall) => [hall.title]),
   ]);
   const workbook = XLSX.utils.book_new();
@@ -37,6 +38,7 @@ interface MappedRow {
   interpretation?: Omit<Interpretation, "id" | "createdAt" | "highlightId">;
   principle?: Omit<Principle, "id">;
   question?: string;
+  priorityWeight?: number;
 }
 
 function mapRow(row: ImportRow, sourceId: string): MappedRow {
@@ -46,6 +48,8 @@ function mapRow(row: ImportRow, sourceId: string): MappedRow {
   const interpretation = values.interpretation?.trim();
   const principle = values.principle?.trim();
   const mapped: MappedRow = {};
+  const priorityRaw = Number(values.priority || "");
+  mapped.priorityWeight = Number.isFinite(priorityRaw) ? Math.max(0, Math.min(5, priorityRaw)) : 0;
 
   if (type === "question" && text) {
     mapped.question = text;
@@ -133,7 +137,7 @@ export function commitRows(rows: ImportRow[], context: { sourceId: string; sourc
       const highlight = addHighlight(parts.highlight);
       highlightId = highlight.id;
       highlightTexts.push(highlight.text);
-      registerCard("highlight", highlight.id, context.sourceTitle, highlight.text);
+      registerCard("highlight", highlight.id, context.sourceTitle, highlight.text, (parts.priorityWeight ?? 0) * 8);
       summary.highlights++;
     }
 
@@ -144,7 +148,7 @@ export function commitRows(rows: ImportRow[], context: { sourceId: string; sourc
 
     if (parts.principle) {
       const principle = addPrinciple(parts.principle);
-      registerCard("principle", principle.id, context.sourceTitle, principle.statement);
+      registerCard("principle", principle.id, context.sourceTitle, principle.statement, (parts.priorityWeight ?? 0) * 8);
       summary.principles++;
     }
   }
