@@ -569,3 +569,21 @@ dialog::backdrop { background: rgba(6, 5, 4, .76); backdrop-filter: blur(4px); }
   .import-file-button, .download-link { width: 100%; }
   .compact-form { grid-template-columns: 1fr; }
 }
+
+
+/* Socratic guidance and resumable learning */
+.question-help-toggle { border: 0; background: transparent; color: var(--bronze-2); padding: 0; margin: 0 0 14px; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+.question-help { border-left: 2px solid var(--bronze); background: rgba(184,148,82,.07); padding: 14px 16px; margin-bottom: 16px; }
+.question-help strong { display: block; font-size: 10px; letter-spacing: .13em; text-transform: uppercase; color: var(--bronze-2); margin-top: 8px; }
+.question-help strong:first-child { margin-top: 0; }
+.question-help p { margin: 4px 0 0; color: #cfc4ae; font-size: 13px; line-height: 1.5; }
+.saved-learning-strip { margin: 12px 18px 0; padding: 12px 14px; border: 1px solid var(--line); background: #1d1a16; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.saved-learning-strip > div:first-child strong, .saved-learning-strip > div:first-child span { display: block; }
+.saved-learning-strip > div:first-child strong { font: 600 16px var(--serif); }
+.saved-learning-strip > div:first-child span { font-size: 11px; color: var(--muted); }
+.saved-learning-items { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 760px) {
+  .saved-learning-strip { margin: 10px 12px 0; align-items: flex-start; flex-direction: column; }
+  .saved-learning-items { justify-content: flex-start; width: 100%; }
+  .saved-learning-items .pill { width: 100%; text-align: left; }
+}
