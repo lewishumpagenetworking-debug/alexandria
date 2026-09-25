@@ -1,4 +1,4 @@
-record_type,source_title,source_creator,location,text,interpretation,principle,hall
-highlight,BOOK TITLE,AUTHOR,"p. 12","Paste the original highlight or your raw note here","Explain what it means in your own words","Write the reusable principle this supports","Logic & Systems"
-question,BOOK TITLE,AUTHOR,"Chapter 3","Write a question you want Alexandria to retain","","",""
-highlight,BOOK TITLE,AUTHOR,"p. 42","Another highlight or note","","","Human Nature"
+record_type,source_title,source_creator,location,text,interpretation,principle,hall,priority
+highlight,BOOK TITLE,AUTHOR,"p. 12","Paste the original highlight or your raw note here","Explain what it means in your own words","Write the reusable principle this supports","Logic & Systems",4
+question,BOOK TITLE,AUTHOR,"Chapter 3","Write a question you want Alexandria to retain","","","",3
+highlight,BOOK TITLE,AUTHOR,"p. 42","Another highlight or note","","","Human Nature",2

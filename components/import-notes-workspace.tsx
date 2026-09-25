@@ -13,7 +13,7 @@ I will provide:
 2. My raw notes from a book/document.
 
 Return a completed spreadsheet using the EXISTING COLUMN HEADERS exactly:
-record_type, source_title, source_creator, location, text, interpretation, principle, hall
+record_type, source_title, source_creator, location, text, interpretation, principle, hall, priority
 
 Rules:
 - Do not rename, remove, reorder, or add columns.
@@ -25,7 +25,7 @@ Rules:
 - text = the original highlight, raw note, or question.
 - interpretation = a concise explanation in my own words where justified.
 - principle = a reusable standalone principle only when the note genuinely supports one.
-- hall is optional. Use only one of: Natural Philosophy, Human Nature, Strategy & Power, Commerce & Creation, Logic & Systems, The Examined Life.
+- hall is optional. Use only one of: Natural Philosophy, Human Nature, Strategy & Power, Commerce & Creation, Logic & Systems, The Examined Life.\n- priority is optional and must be 1-5. Use 5 only for unusually important, broadly applicable, or foundational ideas; 3 for normal useful notes; 1 for low-value context. Leave blank if unsure.\n- Spreadsheet row order does NOT control learning order. Treat every row as an independent knowledge item; Alexandria will prioritise and shuffle them.
 - Leave a cell blank rather than inventing information.
 - Preserve my meaning. Do not fabricate quotes, page numbers, conclusions, or principles.
 - Return the completed file in CSV or XLSX format ready for re-upload into Alexandria.`;
@@ -136,7 +136,7 @@ export function ImportNotesWorkspace({ onBack, onComplete, initialSourceId = "" 
           <div><strong>interpretation</strong><span>What it means in your own words → source understanding</span></div>
           <div><strong>principle</strong><span>Reusable conclusion → Knowledge Map + Review</span></div>
           <div><strong>hall</strong><span>Optional domain tag → Knowledge Map Hall</span></div>
-          <div><strong>location</strong><span>Page / chapter / timestamp → provenance</span></div>
+          <div><strong>location</strong><span>Page / chapter / timestamp → provenance</span></div>\n          <div><strong>priority</strong><span>Optional 1–5 importance signal → helps Alexandria choose what to surface first</span></div>
         </div>
 
         {helpOpen && <article className="card import-help top-gap">

@@ -7,6 +7,7 @@ import { loadBooks } from "@/lib/application-store";
 import { listCaptures } from "@/lib/capture-store";
 import { listAgoraSessions, listForumSessions, type RecallStage } from "@/lib/academy-store";
 import type { SourceRef } from "@/lib/path-store";
+import { getLearningDraft, removeLearningDraft, saveLearningDraft } from "@/lib/learning-draft-store";
 import { isAIConfigured } from "@/lib/settings-store";
 import { getAIFeedback } from "@/services/ai/browser-ai-client";
 
@@ -56,14 +57,57 @@ function AIFeedbackPanel({ context, instruction, userResponse }: { context: stri
 
 export type InterrogationResult = { exerciseType: "interrogation"; passageText: string; passageSource: string; responses: string[] };
 
-export function InterrogationView({ passage: passageOverride, onComplete }: {
+const SOCRATIC_HELP = [
+  {
+    simple: "Why did this idea stand out enough to keep?",
+    purpose: "This checks whether the quote matters to you for a reason, rather than because it merely sounds clever.",
+    needs: "Say what grabbed your attention and why it may be useful, surprising, questionable, or connected to something you care about."
+  },
+  {
+    simple: "What do you think the author is really saying?",
+    purpose: "This separates your understanding from the author's exact wording.",
+    needs: "Explain the claim in plain language as if the reader had never seen the quote."
+  },
+  {
+    simple: "What has to be true for this claim to work?",
+    purpose: "Every claim rests on assumptions. This question makes you expose them.",
+    needs: "Name the conditions, beliefs, or facts the claim depends on. Do not argue for them yet."
+  },
+  {
+    simple: "Which parts are essential, and which parts are decoration?",
+    purpose: "This tests whether you can identify the core idea instead of memorising the wording.",
+    needs: "Strip the quote down to the smallest idea that would still preserve its meaning."
+  },
+  {
+    simple: "Could you rebuild the idea yourself from those essentials?",
+    purpose: "If you can reconstruct the conclusion without copying it, you probably understand it.",
+    needs: "Start from the essentials you identified and explain how they lead to a conclusion in your own words."
+  },
+  {
+    simple: "Where would this idea stop being true or useful?",
+    purpose: "Strong reasoning looks for limits, exceptions, and counterexamples.",
+    needs: "Give at least one situation where the claim would fail, become misleading, or need qualification."
+  },
+  {
+    simple: "Where could you actually use this?",
+    purpose: "Knowledge becomes more durable when it is connected to a real decision or behaviour.",
+    needs: "Name one concrete situation, decision, habit, project, or problem where this idea could change what you do."
+  },
+] as const;
+
+export function InterrogationView({ passage: passageOverride, onComplete, draftKey, sourceRef, onSaveForLater }: {
   passage?: { text: string; source: string };
   onComplete: (result: InterrogationResult) => void;
+  draftKey?: string;
+  sourceRef?: SourceRef;
+  onSaveForLater?: () => void;
 }) {
-  const [index, setIndex] = useState(0);
-  const [answer, setAnswer] = useState("");
-  const [responses, setResponses] = useState<string[]>([]);
-  const [complete, setComplete] = useState(false);
+  const existingDraft = draftKey ? getLearningDraft(draftKey, sourceRef) : undefined;
+  const [index, setIndex] = useState(() => Number(existingDraft?.state.index ?? 0));
+  const [answer, setAnswer] = useState(() => String(existingDraft?.state.answer ?? ""));
+  const [responses, setResponses] = useState<string[]>(() => Array.isArray(existingDraft?.state.responses) ? existingDraft!.state.responses as string[] : []);
+  const [complete, setComplete] = useState(() => Boolean(existingDraft?.state.complete ?? false));
+  const [helpOpen, setHelpOpen] = useState(false);
   const [passage, setPassage] = useState(passageOverride ?? { text: "Problems are inevitable. Problems are soluble.", source: "The Beginning of Infinity" });
 
   useEffect(() => {
@@ -79,6 +123,29 @@ export function InterrogationView({ passage: passageOverride, onComplete }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!draftKey) return;
+    saveLearningDraft({
+      stepId: draftKey,
+      exerciseType: "interrogation",
+      sourceRef,
+      state: { index, answer, responses, complete },
+    });
+  }, [draftKey, sourceRef, index, answer, responses, complete]);
+
+  function saveForLater() {
+    if (draftKey) {
+      saveLearningDraft({
+        stepId: draftKey,
+        exerciseType: "interrogation",
+        sourceRef,
+        state: { index, answer, responses, complete },
+        deferred: true,
+      });
+    }
+    onSaveForLater?.();
+  }
+
   function next() {
     if (!answer.trim()) return;
     const nextResponses = [...responses, answer.trim()]; setResponses(nextResponses); setAnswer("");
@@ -88,7 +155,14 @@ export function InterrogationView({ passage: passageOverride, onComplete }: {
 
   return <section className="view active"><div className="content"><PageHeader eyebrow="Active recall · Socratic examination" title="Interrogation Chamber" intro="Your interpretation stays hidden until you answer. Speak from memory. Precision is more valuable than fluency." />
     <div className="manuscript"><div className="kicker">Passage under examination · {passage.source}</div><blockquote>“{passage.text}”</blockquote><p>Your most recent captured idea is examined before Alexandria supplies interpretation.</p></div>
-    {complete ? <article className="card completion"><div className="seal">A</div><div><div className="kicker">Examination complete</div><h2>The thought has survived seven questions.</h2><p className="meta">Your reconstruction is preserved locally. The next step is to test its boundary conditions in action.</p><AIFeedbackPanel context={`Passage: "${passage.text}" (${passage.source})`} instruction="Assess these seven Socratic reconstruction answers for rigor, precision, and whether they reveal genuine understanding versus borrowed language." userResponse={responses.map((response, index) => `${index + 1}. ${interrogationQuestions[index].prompt}\n${response}`).join("\n\n")} /><button className="small-btn primary top-gap" onClick={() => onComplete({ exerciseType: "interrogation", passageText: passage.text, passageSource: passage.source, responses })}>Continue to the next step →</button></div></article> : <div className="chamber"><article className="card prompt-panel"><div className="prompt-number">{String(index + 1).padStart(2, "0")}</div><div className="kicker">Question {index + 1} of {interrogationQuestions.length}</div><h2>{interrogationQuestions[index].prompt}</h2><textarea className="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Answer in your own language. Do not quote the author." /><div className="mic-row"><button className="mic" title="Dictate with your preferred voice tool" aria-label="Voice compatible input">◉</button><button className="small-btn primary" onClick={next}>{index === interrogationQuestions.length - 1 ? "Complete examination" : "Submit & face the next question"}</button></div></article>
+    {complete ? <article className="card completion"><div className="seal">A</div><div><div className="kicker">Examination complete</div><h2>The thought has survived seven questions.</h2><p className="meta">Your reconstruction is preserved locally. The next step is to test its boundary conditions in action.</p><AIFeedbackPanel context={`Passage: "${passage.text}" (${passage.source})`} instruction="Assess these seven Socratic reconstruction answers for rigor, precision, and whether they reveal genuine understanding versus borrowed language." userResponse={responses.map((response, index) => `${index + 1}. ${interrogationQuestions[index].prompt}\n${response}`).join("\n\n")} /><button className="small-btn primary top-gap" onClick={() => { if (draftKey) removeLearningDraft(draftKey, sourceRef); onComplete({ exerciseType: "interrogation", passageText: passage.text, passageSource: passage.source, responses }); }}>Continue to the next step →</button></div></article> : <div className="chamber"><article className="card prompt-panel"><div className="prompt-number">{String(index + 1).padStart(2, "0")}</div><div className="kicker">Question {index + 1} of {interrogationQuestions.length}</div><h2>{interrogationQuestions[index].prompt}</h2>
+      <button type="button" className="question-help-toggle" onClick={() => setHelpOpen((open) => !open)}>What is this asking?</button>
+      {helpOpen && <div className="question-help">
+        <strong>In simple terms</strong><p>{SOCRATIC_HELP[index].simple}</p>
+        <strong>Why Alexandria asks it</strong><p>{SOCRATIC_HELP[index].purpose}</p>
+        <strong>What your answer needs</strong><p>{SOCRATIC_HELP[index].needs}</p>
+      </div>}
+      <textarea className="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Answer in your own language. Do not quote the author." /><div className="mic-row"><div className="button-row"><button className="mic" title="Dictate with your preferred voice tool" aria-label="Voice compatible input">◉</button>{onSaveForLater && <button type="button" className="small-btn" onClick={saveForLater}>Save for later</button>}</div><button className="small-btn primary" onClick={next}>{index === interrogationQuestions.length - 1 ? "Complete examination" : "Submit & face the next question"}</button></div></article>
       <aside className="card"><div className="kicker">Path of inquiry</div><div className="path">{["Statement", "Assumptions", "Fundamentals", "Reduction", "Reconstruction", "Boundaries", "Application"].map((label, step) => <div className={`path-step${step === index ? " active" : step < index ? " complete" : ""}`} key={label}><span>{step < index ? "✓" : step + 1}</span><b>{label}</b></div>)}</div></aside></div>}
   </div></section>;
 }

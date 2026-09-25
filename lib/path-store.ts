@@ -18,7 +18,7 @@ import {
 } from "@/lib/academy-store";
 import { seedRecallPassages } from "@/data/mock-data";
 import { awardPoints, awardStreakBonusIfDue, recordIfBest, POINTS, type PersonalBest, type PointEvent } from "@/lib/points-store";
-import { getDueRetrievals, recordRetrievalScoreByRef, registerCard, type RetrievalQuality } from "@/lib/retrieval-store";
+import { getDueRetrievals, listCards, recordKnowledgeEngagement, recordRetrievalScoreByRef, registerCard, type RetrievalQuality } from "@/lib/retrieval-store";
 
 export type LoopStage =
   | "encounter"
@@ -102,13 +102,46 @@ function saveAllSteps(steps: PathStep[]) {
   localStorage.setItem(PATHS_KEY, JSON.stringify(steps));
 }
 
-function pickEncounterSource(excludeIds: Set<string>, seedIndex: number): SourceRef {
-  const capture = listCaptures().find((item) => !excludeIds.has(item.id));
-  if (capture) return { type: "capture", id: capture.id, label: capture.type, text: capture.text };
+function deterministicJitter(id: string, salt: number): number {
+  let hash = 2166136261 ^ salt;
+  for (let i = 0; i < id.length; i++) hash = Math.imul(hash ^ id.charCodeAt(i), 16777619);
+  return ((hash >>> 0) % 1000) / 1000;
+}
 
-  for (const book of [...loadBooks()].reverse()) {
-    const index = book.highlights.findIndex((_, i) => !excludeIds.has(`${book.id}-${i}`));
-    if (index >= 0) return { type: "highlight", id: `${book.id}-${index}`, label: book.title, text: book.highlights[index] };
+function pickEncounterSource(excludeIds: Set<string>, seedIndex: number): SourceRef {
+  const cards = listCards()
+    .filter((card) => !excludeIds.has(card.refId))
+    .map((card) => {
+      const last = card.lastEngagedAt ? new Date(card.lastEngagedAt).getTime() : 0;
+      const daysSince = last ? Math.max(0, (Date.now() - last) / 86400000) : 999;
+      const freshness = card.engagementCount ? Math.min(30, daysSince) : 60;
+      const dueBonus = card.dueAt <= todayISO() ? 35 : 0;
+      const noveltyBonus = (card.engagementCount ?? 0) === 0 ? 45 : 0;
+      const repeatPenalty = Math.min(35, (card.engagementCount ?? 0) * 6);
+      const score = freshness + dueBonus + noveltyBonus + (card.priorityWeight ?? 0) - repeatPenalty + deterministicJitter(card.id, seedIndex) * 18;
+      return { card, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const best = cards[0]?.card;
+  if (best) return { type: best.refType, id: best.refId, label: best.label, text: best.text };
+
+  const captures = listCaptures().filter((item) => !excludeIds.has(item.id));
+  if (captures.length) {
+    const capture = captures[Math.floor(deterministicJitter(todayISO(), seedIndex) * captures.length) % captures.length];
+    return { type: "capture", id: capture.id, label: capture.type, text: capture.text };
+  }
+
+  const candidates: SourceRef[] = [];
+  for (const book of loadBooks()) {
+    book.highlights.forEach((text, index) => {
+      const id = `${book.id}-${index}`;
+      if (!excludeIds.has(id)) candidates.push({ type: "highlight", id, label: book.title, text });
+    });
+  }
+  if (candidates.length) {
+    const index = Math.floor(deterministicJitter(todayISO(), seedIndex) * candidates.length) % candidates.length;
+    return candidates[index];
   }
 
   const seed = seedRecallPassages[seedIndex % seedRecallPassages.length];
@@ -150,6 +183,10 @@ function resolveSourceRef(stage: LoopStage, builtSoFar: PathStep[], seedIndex: n
   if (stage === "encounter") {
     const excludeIds = new Set(builtSoFar.filter((step) => step.sourceRef?.type !== "principle").map((step) => step.sourceRef!.id));
     return registerAndReturn(pickEncounterSource(excludeIds, seedIndex));
+  }
+  if (stage === "interrogate") {
+    const excludeIds = new Set(builtSoFar.filter((step) => step.sourceRef).map((step) => step.sourceRef!.id));
+    return registerAndReturn(pickEncounterSource(excludeIds, seedIndex + 17));
   }
   if (stage === "recall" || stage === "retrieve-again") {
     const excludeIds = new Set(builtSoFar.filter((step) => step.sourceRef).map((step) => step.sourceRef!.id));
@@ -216,7 +253,21 @@ export function getDailyPath(date: string = todayISO()): PathStep[] {
 
 export function getCurrentStep(): PathStep | null {
   const steps = getDailyPath(todayISO());
-  return steps.find((step) => step.status !== "completed") ?? null;
+  const current = steps.find((step) => step.status !== "completed") ?? null;
+  if (!current) return null;
+
+  // Migrate older persisted Interrogation steps that were created before steps carried
+  // an explicit source. Without this, the view falls back to the latest highlight and
+  // can repeatedly reopen the same quote.
+  if (current.stage === "interrogate" && !current.sourceRef) {
+    const all = getAllSteps();
+    const exclude = new Set(all.filter((item) => item.sourceRef).map((item) => item.sourceRef!.id));
+    const migrated = { ...current, sourceRef: registerAndReturn(pickEncounterSource(exclude, all.length + 31)) };
+    saveAllSteps(all.map((item) => item.id === current.id ? migrated : item));
+    return migrated;
+  }
+
+  return current;
 }
 
 export interface CompletionOutcome {
@@ -280,11 +331,13 @@ export function completeStep(stepId: string, result: StepResult): CompletionOutc
   if (result.exerciseType === "recall-check") {
     addRecallCheck({ stage: step.stage as RecallStage, prompt: result.prompt, response: result.response });
     if (step.stage === "observe" && step.sourceRef?.type === "principle") recordObservation(step.sourceRef.id, result.response);
+    if (step.sourceRef) recordKnowledgeEngagement(step.sourceRef.type, step.sourceRef.id);
     if (step.stage === "revise" && step.sourceRef?.type === "principle") recordRevision(step.sourceRef.id, result.response);
     if (result.quality && step.sourceRef) recordRetrievalScoreByRef(step.sourceRef.type, step.sourceRef.id, result.quality as RetrievalQuality);
     outcome = { pointsAwarded: [awardPoints("recall-check", `${STAGE_LABELS[step.stage]} step completed`, POINTS.recallCheck, step.id)], newBests: [] };
   } else {
     outcome = recordSessionResult(result, STAGE_LABELS[step.stage], step.stage as FirstPrinciplesStage);
+    if (step.sourceRef) recordKnowledgeEngagement(step.sourceRef.type, step.sourceRef.id);
   }
   const pointsAwarded = outcome.pointsAwarded;
   const newBests = outcome.newBests;
@@ -356,4 +409,30 @@ export function getStats(): AcademyStats {
       recallCheck: listRecallChecks().length,
     },
   };
+}
+
+
+/** Swap the current knowledge item for another priority-ranked item without completing the step.
+ * Used by "Save for later" so the draft remains available but the user can work on something else.
+ */
+export function rotateStepSource(stepId: string): PathStep | null {
+  const all = getAllSteps();
+  const step = all.find((item) => item.id === stepId);
+  if (!step) return null;
+  const exclude = new Set(all.filter((item) => item.sourceRef).map((item) => item.sourceRef!.id));
+  if (step.sourceRef) exclude.add(step.sourceRef.id);
+  const replacement = registerAndReturn(pickEncounterSource(exclude, all.length + step.order + Date.now() % 997));
+  const updatedStep = { ...step, sourceRef: replacement };
+  saveAllSteps(all.map((item) => item.id === stepId ? updatedStep : item));
+  return updatedStep;
+}
+
+
+export function setStepSource(stepId: string, sourceRef: SourceRef): PathStep | null {
+  const all = getAllSteps();
+  const step = all.find((item) => item.id === stepId);
+  if (!step) return null;
+  const updatedStep = { ...step, sourceRef: registerAndReturn(sourceRef) };
+  saveAllSteps(all.map((item) => item.id === stepId ? updatedStep : item));
+  return updatedStep;
 }
