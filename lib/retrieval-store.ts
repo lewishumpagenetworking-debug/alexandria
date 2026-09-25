@@ -12,6 +12,8 @@ export interface RetrievalCard {
   dueAt: string;
   lastReviewedAt?: string;
   reviewCount: number;
+  engagementCount?: number;
+  lastEngagedAt?: string;
   createdAt: string;
 }
 
@@ -108,4 +110,21 @@ export function recordRetrievalScore(cardId: string, quality: RetrievalQuality):
 export function recordRetrievalScoreByRef(refType: RetrievalRefType, refId: string, quality: RetrievalQuality): RetrievalCard | undefined {
   const card = findCard(refType, refId);
   return card ? recordRetrievalScore(card.id, quality) : undefined;
+}
+
+
+/** Records that a knowledge item was meaningfully worked with outside a scored recall.
+ * This prevents the learning queue from immediately serving the same quote again.
+ */
+export function recordKnowledgeEngagement(refType: RetrievalRefType, refId: string): RetrievalCard | undefined {
+  const cards = listCards();
+  const card = cards.find((item) => item.refType === refType && item.refId === refId);
+  if (!card) return undefined;
+  const updated: RetrievalCard = {
+    ...card,
+    engagementCount: (card.engagementCount ?? 0) + 1,
+    lastEngagedAt: new Date().toISOString(),
+  };
+  write(CARDS_KEY, cards.map((item) => item.id === card.id ? updated : item));
+  return updated;
 }
