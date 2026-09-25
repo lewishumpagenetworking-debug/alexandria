@@ -145,7 +145,7 @@ export default function AlexandriaApp() {
       </main>
       <UniversalCapture open={captureOpen} onClose={() => setCaptureOpen(false)} onSave={capture} />
       <div className={`toast${toast ? " show" : ""}`} role="status">Idea captured.</div>
-      <NextActionBar active={active} navigate={navigate} />
+      <NextActionBar active={active} navigate={navigate} hidden={menuOpen} />
       {showOnboarding && (
         <Onboarding onDone={() => setShowOnboarding(false)} navigate={navigate} />
       )}
