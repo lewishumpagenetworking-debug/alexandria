@@ -253,7 +253,21 @@ export function getDailyPath(date: string = todayISO()): PathStep[] {
 
 export function getCurrentStep(): PathStep | null {
   const steps = getDailyPath(todayISO());
-  return steps.find((step) => step.status !== "completed") ?? null;
+  const current = steps.find((step) => step.status !== "completed") ?? null;
+  if (!current) return null;
+
+  // Migrate older persisted Interrogation steps that were created before steps carried
+  // an explicit source. Without this, the view falls back to the latest highlight and
+  // can repeatedly reopen the same quote.
+  if (current.stage === "interrogate" && !current.sourceRef) {
+    const all = getAllSteps();
+    const exclude = new Set(all.filter((item) => item.sourceRef).map((item) => item.sourceRef!.id));
+    const migrated = { ...current, sourceRef: registerAndReturn(pickEncounterSource(exclude, all.length + 31)) };
+    saveAllSteps(all.map((item) => item.id === current.id ? migrated : item));
+    return migrated;
+  }
+
+  return current;
 }
 
 export interface CompletionOutcome {
