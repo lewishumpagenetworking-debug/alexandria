@@ -12,6 +12,7 @@ import type { ImportPreview, ImportRow } from "@/services/import/spreadsheet-imp
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 import { AgoraView, FirstPrinciplesView, ForumView, InterrogationView } from "@/components/views/academy-views";
 import { PageHeader, Rule } from "@/components/page-header";
+import { ImportNotesWorkspace } from "@/components/import-notes-workspace";
 
 const maturity = ["Collected", "Understood", "Interrogated", "Reduced", "Rebuilt", "Applied", "Tested", "Integrated"];
 
@@ -57,7 +58,7 @@ export function LibraryView() {
 
   function startStudy() { setStudyPhase("interrogate"); setStudyPoints(0); setStudyBests([]); }
 
-  if (manageLibrary) return <div><div className="content"><button className="action-link back" onClick={() => { setManageLibrary(false); setBooks(loadBooks()); }}>← Back to Library</button></div><LedgerView /></div>;
+  if (manageLibrary) return <ImportNotesWorkspace initialSourceId={selected?.id ?? ""} onBack={() => { setManageLibrary(false); setBooks(loadBooks()); }} onComplete={() => { setManageLibrary(false); setBooks(loadBooks()); }} />;
 
   function advanceStudy(result: Exclude<StepResult, { exerciseType: "recall-check" }>, label: string) {
     if (!selected) return;
