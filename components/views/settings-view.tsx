@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { PageHeader, Rule } from "@/components/page-header";
 import { getSettings, maskKey, saveSettings, type AIProvider, type AppSettings } from "@/lib/settings-store";
-import { getAIFeedback } from "@/services/ai/browser-ai-client";
+import { getAIFeedback, getAIUsageSummary } from "@/services/ai/browser-ai-client";
 
 const PROVIDER_LABELS: Record<AIProvider, string> = { none: "None (offline only)", openai: "OpenAI (GPT)", anthropic: "Anthropic (Claude)" };
-const MODEL_PLACEHOLDER: Record<AIProvider, string> = { none: "", openai: "e.g. gpt-4o-mini", anthropic: "e.g. claude-sonnet-5" };
+const MODEL_PLACEHOLDER: Record<AIProvider, string> = { none: "", openai: "e.g. gpt-4o-mini", anthropic: "e.g. claude-haiku-4-5" };
 
 export function SettingsView() {
   const [settings, setSettings] = useState<AppSettings>(() => getSettings());
@@ -16,9 +16,13 @@ export function SettingsView() {
   const [testState, setTestState] = useState<"idle" | "testing" | "ok" | "error">("idle");
   const [testMessage, setTestMessage] = useState("");
   const [notifPermission, setNotifPermission] = useState<NotificationPermission | "unsupported">("default");
+  const [usage, setUsage] = useState(() => getAIUsageSummary());
 
   useEffect(() => {
     setNotifPermission(typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported");
+    const refreshUsage = () => setUsage(getAIUsageSummary());
+    window.addEventListener("alexandria:ai-usage", refreshUsage);
+    return () => window.removeEventListener("alexandria:ai-usage", refreshUsage);
   }, []);
 
   function saveKey() {
@@ -58,7 +62,7 @@ export function SettingsView() {
     <article className="card">
       <div className="kicker">AI feedback (optional)</div>
       <h2>Plug in your own OpenAI or Anthropic key</h2>
-      <p className="meta top-gap">This app is a static site with no server. There is nowhere else for a key to live: it is stored only in this browser's local storage and sent directly from your browser to the provider you choose when you tap "Get AI feedback" inside an exercise. It never touches Alexandria's own servers — because there aren't any — but it is visible to anyone with devtools access on this device. Don't use a key you can't afford to have exposed on this machine.</p>
+      <p className="meta top-gap">Alexandria keeps AI calls deliberately small: only the current material, task and your answer are sent, with hard input clipping and a short output cap. Routine Claude feedback defaults to Haiku 4.5 to minimise spend. This static build stores the key in this browser, so use a restricted project key with a low spending limit.</p>
       <Rule />
       <div className="form-grid">
         <label>Provider<select value={settings.aiProvider} onChange={(e) => setSettings(saveSettings({ aiProvider: e.target.value as AIProvider }))}>
@@ -66,7 +70,7 @@ export function SettingsView() {
         </select></label>
         {settings.aiProvider !== "none" && <label>Model<input value={modelDraft} onChange={(e) => setModelDraft(e.target.value)} onBlur={saveModel} placeholder={MODEL_PLACEHOLDER[settings.aiProvider]} /></label>}
       </div>
-      {settings.aiProvider !== "none" && <div className="top-gap">
+      {settings.aiProvider !== "none" && <><div className="feedback-grid top-gap"><article className="diag"><strong>{usage.requests}</strong><span>AI requests on this device</span></article><article className="diag"><strong>{usage.inputTokens.toLocaleString()}</strong><span>input tokens recorded</span></article><article className="diag"><strong>{usage.outputTokens.toLocaleString()}</strong><span>output tokens recorded</span></article></div><div className="top-gap">
         {!editingKey ? <div className="button-row">
           <span className="voice-note">API key: {settings.aiApiKey ? maskKey(settings.aiApiKey) : "not set"}</span>
           <button className="small-btn" onClick={() => setEditingKey(true)}>{settings.aiApiKey ? "Change key" : "Add key"}</button>
@@ -80,7 +84,7 @@ export function SettingsView() {
           {testState === "ok" && <p className="saved-note top-gap">Connected. Model replied: “{testMessage}”</p>}
           {testState === "error" && <p className="saved-note top-gap">{testMessage}</p>}
         </div>}
-      </div>}
+      </div></>}
     </article>
 
     <article className="card top-gap">
