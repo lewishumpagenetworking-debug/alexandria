@@ -509,3 +509,28 @@ dialog::backdrop { background: rgba(6, 5, 4, .76); backdrop-filter: blur(4px); }
   .tab-btn { padding: 10px 12px; font-size: 12px; }
   .onboarding-body { padding: 32px 22px; }
 }
+
+
+/* Purpose-first import and arcade additions */
+.import-steps { margin: 12px 0 0; padding-left: 22px; color: #bdb3a2; }
+.import-steps li { margin: 9px 0; }
+.import-steps strong { color: var(--paper); }
+
+.rally-stage { max-width: 760px; margin-top: 18px; }
+.rally-stage canvas { width: 100%; height: auto; display: block; border: 1px solid var(--line); touch-action: none; background: var(--ink); }
+.rally-score { display: flex; align-items: baseline; justify-content: center; gap: 14px; margin: 18px 0; }
+.rally-score strong { font: 600 44px var(--serif); color: var(--bronze-2); }
+.rally-score span { color: var(--muted); font-size: 11px; letter-spacing: .16em; }
+.rally-score i { color: var(--line); font-style: normal; }
+
+.achievement-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+.achievement { border: 1px solid var(--line); padding: 13px; opacity: .48; }
+.achievement.unlocked { opacity: 1; border-color: rgba(184,148,82,.55); background: rgba(184,148,82,.06); }
+.achievement strong, .achievement span { display: block; }
+.achievement strong { font: 600 16px var(--serif); }
+.achievement span { margin-top: 4px; font-size: 11px; color: var(--muted); }
+
+@media (max-width: 760px) {
+  .achievement-grid { grid-template-columns: 1fr; }
+  .rally-score strong { font-size: 34px; }
+}
