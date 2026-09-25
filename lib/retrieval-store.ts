@@ -14,6 +14,7 @@ export interface RetrievalCard {
   reviewCount: number;
   engagementCount?: number;
   lastEngagedAt?: string;
+  priorityWeight?: number;
   createdAt: string;
 }
 
@@ -50,14 +51,14 @@ function uid(prefix: string) {
 export const listCards = () => read<RetrievalCard[]>(CARDS_KEY, []);
 
 /** Registers a knowledge item for spaced review. A card already tracking the same ref is left untouched. */
-export function registerCard(refType: RetrievalRefType, refId: string, label: string, text: string): RetrievalCard {
+export function registerCard(refType: RetrievalRefType, refId: string, label: string, text: string, priorityWeight = 0): RetrievalCard {
   const cards = listCards();
   const existing = cards.find((card) => card.refType === refType && card.refId === refId);
   if (existing) return existing;
 
   const card: RetrievalCard = {
     id: uid("card"), refType, refId, label, text,
-    easeFactor: START_EASE, intervalDays: 1, dueAt: todayISO(), reviewCount: 0, createdAt: new Date().toISOString(),
+    easeFactor: START_EASE, intervalDays: 1, dueAt: todayISO(), reviewCount: 0, priorityWeight, createdAt: new Date().toISOString(),
   };
   write(CARDS_KEY, [card, ...cards].slice(0, 5000));
   return card;
