@@ -33,6 +33,8 @@ export function addHighlight(input: Omit<Highlight, "id" | "capturedAt">): Highl
 export const getHighlightsForSource = (sourceId: string) => listHighlights().filter((item) => item.sourceId === sourceId);
 
 export const listInterpretations = () => read<Interpretation[]>(INTERPRETATIONS_KEY, []);
+export const getInterpretationsForSource = (sourceId: string) => listInterpretations().filter((item) => item.sourceId === sourceId);
+export const getInterpretationsForHighlight = (highlightId: string) => listInterpretations().filter((item) => item.highlightId === highlightId);
 
 export function addInterpretation(input: Omit<Interpretation, "id" | "createdAt">): Interpretation {
   const interpretation: Interpretation = { ...input, id: uid("interpretation"), createdAt: new Date().toISOString() };
@@ -49,5 +51,6 @@ export function addPrinciple(input: Omit<Principle, "id">): Principle {
 }
 
 export const getPrinciplesForSource = (sourceId: string) => listPrinciples().filter((item) => item.sourceIds.includes(sourceId));
+export const getPrinciplesForHighlight = (highlightId: string) => listPrinciples().filter((item) => item.highlightId === highlightId);
 
 export const getPrinciplesForHall = (hallId: string) => listPrinciples().filter((item) => item.hallIds?.includes(hallId));
