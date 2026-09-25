@@ -7,10 +7,11 @@ import { addHighlight, getHighlightsForSource, getPrinciplesForHall, getPrincipl
 import { awardPoints, POINTS } from "@/lib/points-store";
 import { recordSessionResult, type StepResult } from "@/lib/path-store";
 import { registerCard } from "@/lib/retrieval-store";
+import { markBookStudyAnchorEngaged, pickBookStudyAnchor, type BookStudyAnchor } from "@/lib/book-study-store";
 import { commitRows, createNotesTemplate, downloadBlob, xlsxImporter, type ImportSummary } from "@/services/import/xlsx-importer";
 import type { ImportPreview, ImportRow } from "@/services/import/spreadsheet-import";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
-import { AgoraView, FirstPrinciplesView, ForumView, InterrogationView } from "@/components/views/academy-views";
+import { AgoraView, FirstPrinciplesView, ForumView, InterrogationView, type BookStudyContext } from "@/components/views/academy-views";
 import { PageHeader, Rule } from "@/components/page-header";
 import { ImportNotesWorkspace } from "@/components/import-notes-workspace";
 
@@ -42,8 +43,8 @@ export function AtriumView({ navigate }: { navigate: (space: AlexandriaSpace) =>
   </section>;
 }
 
-type StudyPhase = "idle" | "interrogate" | "reduce" | "agora" | "forum" | "done";
-const STUDY_NEXT: Record<StudyPhase, StudyPhase> = { idle: "idle", interrogate: "reduce", reduce: "agora", agora: "forum", forum: "done", done: "done" };
+type StudyPhase = "idle" | "interrogate" | "reduce" | "rebuild" | "agora" | "forum" | "done";
+const STUDY_NEXT: Record<StudyPhase, StudyPhase> = { idle: "idle", interrogate: "reduce", reduce: "rebuild", rebuild: "agora", agora: "forum", forum: "done", done: "done" };
 
 export function LibraryView() {
   const [books, setBooks] = useState(seedBooks);
@@ -52,11 +53,22 @@ export function LibraryView() {
   const [studyPhase, setStudyPhase] = useState<StudyPhase>("idle");
   const [studyPoints, setStudyPoints] = useState(0);
   const [studyBests, setStudyBests] = useState<string[]>([]);
+  const [studyAnchor, setStudyAnchor] = useState<BookStudyAnchor | null>(null);
+  const [studyReasoning, setStudyReasoning] = useState<{ interrogation?: string[]; reduce?: Record<string, string>; rebuild?: Record<string, string>; agora?: string }>({});
   const [manageLibrary, setManageLibrary] = useState(false);
   useEffect(() => setBooks(loadBooks()), []);
   const shown = books.filter((book) => `${book.title} ${book.author}`.toLowerCase().includes(query.toLowerCase()));
 
-  function startStudy() { setStudyPhase("interrogate"); setStudyPoints(0); setStudyBests([]); }
+  function startStudy() {
+    if (!selected) return;
+    const anchor = pickBookStudyAnchor(selected.id, selected.title);
+    if (!anchor) return;
+    setStudyAnchor(anchor);
+    setStudyReasoning({});
+    setStudyPhase("interrogate");
+    setStudyPoints(0);
+    setStudyBests([]);
+  }
 
   if (manageLibrary) return <ImportNotesWorkspace initialSourceId={selected?.id ?? ""} onBack={() => { setManageLibrary(false); setBooks(loadBooks()); }} onComplete={() => { setManageLibrary(false); setBooks(loadBooks()); }} />;
 
@@ -65,6 +77,12 @@ export function LibraryView() {
     const outcome = recordSessionResult(result, `${label} · ${selected.title}`);
     setStudyPoints((points) => points + outcome.pointsAwarded.reduce((sum, event) => sum + event.points, 0));
     if (outcome.newBests.length) setStudyBests((bests) => [...bests, ...outcome.newBests.map((best) => best.label)]);
+    if (result.exerciseType === "interrogation") setStudyReasoning((prev) => ({ ...prev, interrogation: result.responses }));
+    if (result.exerciseType === "first-principles") {
+      setStudyReasoning((prev) => studyPhase === "reduce" ? ({ ...prev, reduce: result.values }) : ({ ...prev, rebuild: result.values }));
+    }
+    if (result.exerciseType === "agora") setStudyReasoning((prev) => ({ ...prev, agora: result.response }));
+    if (studyPhase === "forum" && studyAnchor) markBookStudyAnchorEngaged(studyAnchor);
     setStudyPhase((phase) => STUDY_NEXT[phase]);
   }
 
@@ -72,17 +90,30 @@ export function LibraryView() {
     const bookHighlights = getHighlightsForSource(selected.id);
     const bookPrinciples = getPrinciplesForSource(selected.id);
     const canStudy = bookHighlights.length > 0 || bookPrinciples.length > 0;
-    const passage = bookHighlights[0]
-      ? { text: bookHighlights[0].text, source: selected.title }
-      : bookPrinciples[0] ? { text: bookPrinciples[0].statement, source: selected.title } : undefined;
+
+    const reconstruction = studyReasoning.rebuild?.["Reconstruction"] || studyReasoning.reduce?.["Reconstruction"] || studyReasoning.rebuild?.["Fundamental truths"] || studyReasoning.reduce?.["Fundamental truths"];
+    const studyContext: BookStudyContext | undefined = studyAnchor ? {
+      sourceTitle: selected.title,
+      anchorText: studyAnchor.text,
+      location: studyAnchor.location,
+      interpretation: studyAnchor.interpretation,
+      principle: studyAnchor.principle,
+      reconstruction,
+      relationshipConfidence: studyAnchor.relationshipConfidence,
+    } : undefined;
 
     if (studyPhase !== "idle") return <section className="view active"><div className="content">
       <button className="action-link back" onClick={() => setStudyPhase("idle")}>← Exit study session</button>
-      {studyPhase === "interrogate" && <InterrogationView key="study-interrogate" passage={passage} onComplete={(result) => advanceStudy(result, "Interrogate")} />}
-      {studyPhase === "reduce" && <FirstPrinciplesView key="study-reduce" stage="reduce" onComplete={(result) => advanceStudy(result, "Reduce")} />}
-      {studyPhase === "agora" && <AgoraView key="study-agora" onComplete={(result) => advanceStudy(result, "Connect")} />}
-      {studyPhase === "forum" && <ForumView key="study-forum" onComplete={(result) => advanceStudy(result, "Articulate")} />}
-      {studyPhase === "done" && <article className="card completion study-loop-card"><div className="seal">✓</div><div><div className="kicker">Study session complete</div><h2>{selected.title}</h2><p className="meta">{studyPoints} points earned{studyBests.length ? ` · New record${studyBests.length > 1 ? "s" : ""}: ${studyBests.join(", ")}` : ""}.</p><button className="small-btn primary" onClick={() => setStudyPhase("idle")}>Return to {selected.title}</button></div></article>}
+      {studyAnchor && <article className="study-thread">
+        <div className="kicker">Active book thread · {selected.title}{studyAnchor.location ? ` · ${studyAnchor.location}` : ""}</div>
+        <p>Every exercise in this session expands from the same imported knowledge item.</p>
+      </article>}
+      {studyPhase === "interrogate" && <InterrogationView key={`study-interrogate-${studyAnchor?.refId}`} passage={studyAnchor ? { text: studyAnchor.text, source: selected.title } : undefined} onComplete={(result) => advanceStudy(result, "Interrogate")} />}
+      {studyPhase === "reduce" && <FirstPrinciplesView key={`study-reduce-${studyAnchor?.refId}`} stage="reduce" priorWork={studyAnchor ? { label: selected.title, text: studyAnchor.interpretation || studyAnchor.text } : undefined} onComplete={(result) => advanceStudy(result, "Reduce")} />}
+      {studyPhase === "rebuild" && <FirstPrinciplesView key={`study-rebuild-${studyAnchor?.refId}`} stage="rebuild" priorWork={studyAnchor ? { label: `${selected.title} · reduced`, text: studyReasoning.reduce?.["Fundamental truths"] || studyReasoning.reduce?.["Reconstruction"] || studyAnchor.principle || studyAnchor.text } : undefined} onComplete={(result) => advanceStudy(result, "Rebuild")} />}
+      {studyPhase === "agora" && <AgoraView key={`study-agora-${studyAnchor?.refId}`} studyContext={studyContext} onComplete={(result) => advanceStudy(result, "Apply")} />}
+      {studyPhase === "forum" && <ForumView key={`study-forum-${studyAnchor?.refId}`} studyContext={studyContext} onComplete={(result) => advanceStudy(result, "Articulate")} />}
+      {studyPhase === "done" && <article className="card completion study-loop-card"><div className="seal">✓</div><div><div className="kicker">Book thread complete</div><h2>{selected.title}</h2><p className="meta">{studyPoints} points earned{studyBests.length ? ` · New record${studyBests.length > 1 ? "s" : ""}: ${studyBests.join(", ")}` : ""}. This knowledge item has been marked as engaged, so the next session will prioritise a different imported item.</p><div className="button-row"><button className="small-btn" onClick={() => { setStudyPhase("idle"); setStudyAnchor(null); }}>Return to book</button><button className="small-btn primary" onClick={startStudy}>Study another item →</button></div></div></article>}
     </div></section>;
 
     return <section className="view active"><div className="content">

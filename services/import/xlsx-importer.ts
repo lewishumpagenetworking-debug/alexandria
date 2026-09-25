@@ -147,7 +147,7 @@ export function commitRows(rows: ImportRow[], context: { sourceId: string; sourc
     }
 
     if (parts.principle) {
-      const principle = addPrinciple(parts.principle);
+      const principle = addPrinciple({ ...parts.principle, highlightId });
       registerCard("principle", principle.id, context.sourceTitle, principle.statement, (parts.priorityWeight ?? 0) * 8);
       summary.principles++;
     }

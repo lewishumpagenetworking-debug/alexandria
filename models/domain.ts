@@ -52,6 +52,8 @@ export interface Interpretation {
 
 export interface Principle {
   id: EntityId;
+  /** Exact highlight that produced this principle when known. Older data may omit it. */
+  highlightId?: EntityId;
   statement: string;
   explanation?: string;
   sourceIds: EntityId[];
