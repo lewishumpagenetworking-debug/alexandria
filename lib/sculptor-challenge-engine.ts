@@ -1,6 +1,6 @@
-import { getKnowledgeUnitCard, listKnowledgeUnits, recordKnowledgeUnitSurfaced } from "@/lib/knowledge-unit-store";
+import { getKnowledgeUnitCard, listKnowledgeUnits, recordKnowledgeAttempt, recordKnowledgeUnitSurfaced } from "@/lib/knowledge-unit-store";
 import type { KnowledgeUnit } from "@/models/domain";
-import type { RetrievalCard } from "@/lib/retrieval-store";
+import { recordKnowledgeEngagement, recordRetrievalScore, type RetrievalCard, type RetrievalQuality } from "@/lib/retrieval-store";
 
 export type SculptorChallengeType = "diagnosis" | "retrieval" | "principle" | "boundary" | "application";
 
@@ -129,4 +129,22 @@ export function getKnowledgeChallenge(request: ChallengeRequest = {}): SculptorC
 
 export function getKnowledgeChallengeDeck(sourceTitle?: string): KnowledgeUnit[] {
   return listKnowledgeUnits().filter((unit) => !sourceTitle || sourceTitle === "all" || unit.sourceTitle === sourceTitle);
+}
+
+
+export function recordSculptorChallengeResult(
+  challenge: SculptorChallenge,
+  response: string,
+  quality: RetrievalQuality,
+  surface: "review" | "daily-challenge" | "pong" | "path" | "other" = "other",
+) {
+  const updatedCard = recordRetrievalScore(challenge.card.id, quality);
+  recordKnowledgeEngagement(challenge.card.refType, challenge.card.refId);
+  recordKnowledgeAttempt(challenge.unit.id, {
+    challengeType: challenge.type,
+    response,
+    quality,
+    surface,
+  });
+  return updatedCard;
 }
