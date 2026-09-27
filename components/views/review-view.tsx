@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { getDueRetrievals, getDueCount, recordRetrievalScore, type RetrievalCard, type RetrievalQuality } from "@/lib/retrieval-store";
 import { awardPoints, POINTS } from "@/lib/points-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
+import { SourceReference } from "@/components/source-reference";
 
 type Phase = "idle" | "recall" | "revealed" | "done";
 
@@ -109,20 +110,25 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
             {card.reviewCount > 0 && <span className="meta">reviewed {card.reviewCount}×</span>}
           </div>
 
+          <SourceReference
+            label={card.label}
+            text={card.text}
+            note="The source remains visible so your reasoning is grounded. Review tests whether you can explain and use the idea accurately."
+          />
+
           {phase === "recall" && (
             <div className="recall-phase">
-              <p className="review-prompt">Without looking it up: what do you remember about this?</p>
-              <div className="review-blur-hint">The original text is hidden. Recall first, then reveal.</div>
+              <p className="review-prompt">Explain this idea in your own words. What is essential, and where would it be useful?</p>
               <textarea
                 className="recall-input"
                 value={response}
                 onChange={(e) => setResponse(e.target.value)}
-                placeholder="Write what you remember, in your own words…"
+                placeholder="Explain the idea and its relevance using the reference above…"
                 autoFocus
               />
               <div className="button-row">
-                <button className="small-btn" onClick={() => { setPhase("revealed"); }}>I can't recall — show me</button>
-                <button className="small-btn primary" disabled={!response.trim()} onClick={() => setPhase("revealed")}>Reveal and compare</button>
+                <button className="small-btn" onClick={() => { setPhase("revealed"); }}>I need help comparing</button>
+                <button className="small-btn primary" disabled={!response.trim()} onClick={() => setPhase("revealed")}>Commit and compare</button>
               </div>
             </div>
           )}
@@ -136,7 +142,7 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
                 </div>
               )}
               <div className="original-text">
-                <div className="recall-label">Original</div>
+                <div className="recall-label">Reference source</div>
                 <blockquote>{card.text}</blockquote>
               </div>
               <p className="score-prompt">How well did you recall it?</p>
