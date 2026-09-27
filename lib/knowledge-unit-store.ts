@@ -1,7 +1,7 @@
 import { loadBooks } from "@/lib/application-store";
 import { listHighlights, listInterpretations, listPrinciples } from "@/lib/library-notes-store";
 import { findCard, type RetrievalCard, type RetrievalQuality } from "@/lib/retrieval-store";
-import type { KnowledgeUnit, KnowledgeUnitMastery } from "@/models/domain";
+import type { KnowledgeAttempt, KnowledgeUnit, KnowledgeUnitMastery } from "@/models/domain";
 
 type KnowledgeUnitOverlay = {
   knowledgeUnitId: string;
@@ -13,6 +13,7 @@ type KnowledgeUnitOverlay = {
   thenAction?: string;
   rationale?: string;
   situationTags?: string[];
+  diagnosisHistory?: KnowledgeAttempt[];
   lastSurfacedAt?: string;
   timesSurfaced?: number;
 };
@@ -94,6 +95,7 @@ export function listKnowledgeUnits(): KnowledgeUnit[] {
       thenAction: overlay?.thenAction,
       rationale: overlay?.rationale,
       situationTags: overlay?.situationTags ?? [],
+      diagnosisHistory: overlay?.diagnosisHistory ?? [],
       mastery: masteryFromCard(card),
       priority: Math.round((card?.priorityWeight ?? 0) / 8),
       lastSurfacedAt: overlay?.lastSurfacedAt ?? card?.lastEngagedAt,
@@ -140,4 +142,20 @@ export function applyKnowledgeUnitReviewResult(unitId: string, quality: Retrieva
   // This overlay intentionally stores only non-duplicated Sculptor metadata.
   updateKnowledgeUnitOverlay(unitId, { lastSurfacedAt: new Date().toISOString() });
   return nextState;
+}
+
+
+export function recordKnowledgeAttempt(unitId: string, attempt: Omit<KnowledgeAttempt, "id" | "createdAt">): KnowledgeAttempt | undefined {
+  const unit = getKnowledgeUnit(unitId);
+  if (!unit) return undefined;
+  const saved: KnowledgeAttempt = {
+    ...attempt,
+    id: `attempt-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`,
+    createdAt: new Date().toISOString(),
+  };
+  updateKnowledgeUnitOverlay(unitId, {
+    diagnosisHistory: [saved, ...unit.diagnosisHistory].slice(0, 250),
+    lastSurfacedAt: new Date().toISOString(),
+  });
+  return saved;
 }
