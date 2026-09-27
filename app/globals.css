@@ -649,3 +649,145 @@ dialog::backdrop { background: rgba(6, 5, 4, .76); backdrop-filter: blur(4px); }
   .reminder-row { grid-template-columns: minmax(0,1fr) auto; }
   .reminder-row input[type="time"] { grid-column: 1 / -1; width: 100%; }
 }
+
+
+/* Reference clarity + reading cadence */
+.source-reference {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border: 1px solid rgba(184,148,82,.48);
+  border-left: 3px solid var(--bronze);
+  background: linear-gradient(135deg, rgba(184,148,82,.08), rgba(23,21,18,.96));
+}
+.source-reference-book {
+  color: var(--bronze-2);
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+}
+.source-reference blockquote {
+  margin: 0;
+  color: #e6dbc4;
+  font: 500 17px/1.45 var(--serif);
+}
+.source-reference p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.principle-stage .source-reference {
+  grid-column: 1 / -1;
+  margin-bottom: 4px;
+}
+.path-source-banner {
+  margin: 12px 18px 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(184,148,82,.42);
+  background: linear-gradient(135deg, rgba(184,148,82,.08), rgba(23,21,18,.95));
+}
+.path-source-banner blockquote {
+  margin: 6px 0;
+  color: #e6dbc4;
+  font: 500 18px/1.45 var(--serif);
+}
+.path-source-banner span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.reading-tally-card {
+  border-color: rgba(184,148,82,.38);
+}
+.reading-tally-card h2 {
+  margin: 4px 0 8px;
+  font: 600 27px/1.15 var(--serif);
+}
+.reading-tally-form {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr .8fr .8fr auto;
+  gap: 10px;
+  align-items: end;
+}
+.reading-tally-form label {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.reading-tally-form select,
+.reading-tally-form input {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  margin-top: 6px;
+  background: #171411;
+  border: 1px solid var(--line);
+  color: var(--paper);
+  padding: 9px 10px;
+  font-size: 14px;
+}
+.reading-tally-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+}
+.reading-tally-stats > div {
+  background: #1d1a16;
+  padding: 12px;
+}
+.reading-tally-stats strong,
+.reading-tally-stats span {
+  display: block;
+}
+.reading-tally-stats strong {
+  color: var(--bronze-2);
+  font: 600 24px var(--serif);
+}
+.reading-tally-stats span {
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+/* Motion should signal progress, not demand attention. */
+@keyframes alexandria-enter {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes alexandria-progress-breathe {
+  0%, 100% { border-color: rgba(184,148,82,.42); }
+  50% { border-color: rgba(210,176,108,.72); }
+}
+.path-source-banner,
+.read-instead-card,
+.reading-tally-card,
+.rally-level-up {
+  animation: alexandria-enter .28s ease-out both;
+}
+.path-source-banner {
+  animation: alexandria-enter .28s ease-out both, alexandria-progress-breathe 4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .path-source-banner,
+  .read-instead-card,
+  .reading-tally-card,
+  .rally-level-up {
+    animation: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .reading-tally-form { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .reading-tally-form .small-btn { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .path-source-banner { margin: 10px 12px 0; }
+  .reading-tally-form { grid-template-columns: 1fr; }
+  .reading-tally-form .small-btn { grid-column: auto; width: 100%; }
+  .reading-tally-stats { grid-template-columns: repeat(2, 1fr); }
+}
