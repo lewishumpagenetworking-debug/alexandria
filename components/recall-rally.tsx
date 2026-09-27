@@ -6,6 +6,7 @@ import { awardPoints, POINTS } from "@/lib/points-store";
 import { buildRallyChallenge, buildRallyDeck, chooseRallyCard, type RallyChallenge } from "@/lib/recall-rally-engine";
 import { saveRecallRallyRun } from "@/lib/recall-rally-store";
 import { recordRetrievalScore, recordKnowledgeEngagement, type RetrievalQuality } from "@/lib/retrieval-store";
+import { SourceReference } from "@/components/source-reference";
 
 type Phase = "setup" | "playing" | "challenge" | "level-complete" | "result";
 type PowerUp = "shield" | "slow" | "double" | null;
@@ -427,10 +428,7 @@ export function RecallRally({ onExit }: { onExit: () => void }) {
         <span className="meta">{challenge.card.label}</span>
       </div>
 
-      <div className="manuscript compact-manuscript">
-        <div className="kicker">Knowledge under pressure</div>
-        {challenge.type === "recall" ? <p className="meta">The source stays hidden until you commit.</p> : <blockquote>“{challenge.sourceText}”</blockquote>}
-      </div>
+      <SourceReference label={challenge.card.label} text={challenge.sourceText} note="Use this exact source as the basis for the challenge below." />
 
       {!revealed ? <>
         <h2>{challenge.prompt}</h2>

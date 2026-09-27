@@ -93,6 +93,11 @@ export function PathView({ navigate }: { navigate: (space: AlexandriaSpace) => v
       <div><strong>Saved for later</strong><span>{savedDrafts.length} unfinished {savedDrafts.length === 1 ? "draft" : "drafts"}</span></div>
       <div className="saved-learning-items">{savedDrafts.slice(0, 4).map((draft) => <button key={draft.id} className="pill" onClick={() => setResumeDraft(draft)}>{draft.sourceRef?.label ?? "Resume draft"} · {new Date(draft.savedAt).toLocaleDateString("en-GB")}</button>)}</div>
     </div>}
+    {current.sourceRef && <div className="path-source-banner">
+      <div className="kicker">Active knowledge thread · {current.sourceRef.label}</div>
+      <blockquote>“{current.sourceRef.text}”</blockquote>
+      <span>Every question below should be answered against this reference.</span>
+    </div>}
     {current.exerciseType === "interrogation" && <InterrogationView
       key={`${current.id}:${current.sourceRef?.id ?? "none"}`}
       passage={current.sourceRef ? { text: current.sourceRef.text, source: current.sourceRef.label } : undefined}
@@ -101,9 +106,27 @@ export function PathView({ navigate }: { navigate: (space: AlexandriaSpace) => v
       onSaveForLater={saveCurrentForLater}
       onComplete={(result: InterrogationResult) => handleComplete(result)}
     />}
-    {current.exerciseType === "first-principles" && <FirstPrinciplesView key={current.id} stage={current.stage as "reduce" | "rebuild"} priorWork={current.stage === "rebuild" ? current.sourceRef : undefined} onComplete={(result: FirstPrinciplesResult) => handleComplete(result)} />}
-    {current.exerciseType === "agora" && <AgoraView key={current.id} onComplete={(result: AgoraResult) => handleComplete(result)} />}
-    {current.exerciseType === "forum" && <ForumView key={current.id} onComplete={(result: ForumResult) => handleComplete(result)} />}
+    {current.exerciseType === "first-principles" && <FirstPrinciplesView
+      key={current.id}
+      stage={current.stage as "reduce" | "rebuild"}
+      priorWork={current.sourceRef ? {
+        label: current.stage === "rebuild" ? "Carried reasoning" : current.sourceRef.label,
+        text: current.sourceRef.text,
+        referenceLabel: current.sourceRef.label,
+        referenceText: current.sourceRef.text,
+      } : undefined}
+      onComplete={(result: FirstPrinciplesResult) => handleComplete(result)}
+    />}
+    {current.exerciseType === "agora" && <AgoraView
+      key={current.id}
+      studyContext={current.sourceRef ? { sourceTitle: current.sourceRef.label, anchorText: current.sourceRef.text } : undefined}
+      onComplete={(result: AgoraResult) => handleComplete(result)}
+    />}
+    {current.exerciseType === "forum" && <ForumView
+      key={current.id}
+      studyContext={current.sourceRef ? { sourceTitle: current.sourceRef.label, anchorText: current.sourceRef.text } : undefined}
+      onComplete={(result: ForumResult) => handleComplete(result)}
+    />}
     {current.exerciseType === "recall-check" && <RecallCheckView key={current.id} stage={current.stage as RecallStage} sourceRef={current.sourceRef} onComplete={(result: RecallCheckResult) => handleComplete(result)} />}
     {toast && <div className="points-toast" role="status">{toast}</div>}
   </>;

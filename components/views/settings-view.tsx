@@ -112,7 +112,7 @@ export function SettingsView() {
     <article className="card top-gap">
       <div className="kicker">Habit reminders</div>
       <h2>Reading and retention notifications</h2>
-      <p className="meta top-gap">These reminders are state-aware: they react to whether you have read today, whether reviews are due, and whether a Read Instead sprint is unfinished. This static GitHub Pages build can schedule them while Alexandria is active and catch missed windows when you reopen or resume it. A truly closed-app push requires a push backend.</p>
+      <p className="meta top-gap">These reminders are state-aware: they react to whether you have read today, whether reviews are due, and whether a Read Instead sprint is unfinished. This static GitHub Pages build can send the 30-minute pulse while Alexandria is active and catch the scheduled morning/afternoon/evening windows when you reopen or resume it. A truly closed-app phone push still requires a push backend.</p>
 
       <div className="button-row top-gap">
         <button className={`small-btn${settings.notificationsEnabled ? " primary" : ""}`} onClick={() => toggleNotifications(!settings.notificationsEnabled)} disabled={notifPermission === "unsupported"}>
@@ -127,6 +127,11 @@ export function SettingsView() {
       <Rule />
 
       <div className="reminder-grid">
+        <label className="reminder-row">
+          <span><strong>30-minute learning pulse</strong><small>While Alexandria is active, check in every half hour with the most relevant reading/review cue.</small></span>
+          <input type="checkbox" checked={settings.reminderPulseEvery30} onChange={(e) => patchSettings({ reminderPulseEvery30: e.target.checked })} />
+          <span className="voice-note">Every 30 min</span>
+        </label>
         <label className="reminder-row">
           <span><strong>Morning reading cue</strong><small>Start with reading before habitual scrolling.</small></span>
           <input type="checkbox" checked={settings.reminderMorning} onChange={(e) => patchSettings({ reminderMorning: e.target.checked })} />
