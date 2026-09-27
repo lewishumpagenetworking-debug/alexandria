@@ -21,8 +21,16 @@ type ScholarRule = {
 const ROBERTS_LIFE = "https://www.andrew-roberts.net/books/napoleon-a-life/";
 const ROBERTS_GREAT = "https://www.andrew-roberts.net/books/napoleon-the-great/";
 const ROBERTS_WELLINGTON = "https://www.andrew-roberts.net/books/napoleon-wellington/";
+const ROBERTS_MARSHALS = "https://www.andrew-roberts.net/books/napoleon-his-marshals/";
 
 const NAPOLEON_RULES: ScholarRule[] = [
+  {
+    test: /(men are nothing|one man is everything|judge men|results of their actions|friendship|deceiving those|master their passions|loyalty|governors|asking questions)/i,
+    basis: "In Napoleon & His Marshals, Andrew Roberts emphasizes both Napoleon's inspiring leadership and the darker cost of manipulating and controlling the commanders whose loyalty he depended on. That supports reading this passage through the tension between instrumental judgments of people, command effectiveness, and the fragility of loyalty.",
+    sourceTitle: "Napoleon & His Marshals",
+    sourceUrl: ROBERTS_MARSHALS,
+    confidence: "contextual",
+  },
   {
     test: /(tell them|newspapers|history|imagination rules|impress them|public opinion|reputation|fear me|world begged|crown of france|great man)/i,
     basis: "Andrew Roberts emphasizes that Napoleon understood the strategic importance of controlling his own story. Roberts treats Napoleon's memoir-making and public self-presentation as part of his political method, so this passage is useful evidence of Napoleon thinking about perception as an instrument of power.",
