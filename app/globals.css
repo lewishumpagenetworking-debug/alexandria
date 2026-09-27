@@ -791,3 +791,31 @@ dialog::backdrop { background: rgba(6, 5, 4, .76); backdrop-filter: blur(4px); }
   .reading-tally-form .small-btn { grid-column: auto; width: 100%; }
   .reading-tally-stats { grid-template-columns: repeat(2, 1fr); }
 }
+
+
+/* Scholar-backed review */
+.review-diagnosis,
+.review-scholar {
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: #1c1916;
+}
+.review-diagnosis {
+  border-left: 3px solid var(--bronze);
+}
+.review-diagnosis p,
+.review-scholar p {
+  margin: 6px 0 0;
+  color: #d9cdb8;
+  line-height: 1.55;
+}
+.review-scholar {
+  border-left: 3px solid #6b9cc9;
+}
+.review-scholar strong {
+  color: #e6dbc4;
+}
+.review-scholar .action-link {
+  display: inline-block;
+  margin-top: 8px;
+}

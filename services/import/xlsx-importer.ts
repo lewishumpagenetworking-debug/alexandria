@@ -11,7 +11,7 @@ import { spreadsheetColumns, type ImportIssue, type ImportPreview, type ImportRo
 /** Generates the downloadable .xlsx template for a book's notes, pre-filled with its title/author. */
 export function createNotesTemplate(book: { title: string; author: string }): Blob {
   const starterRows = Array.from({ length: 25 }, () => ({
-    record_type: "", source_title: book.title, source_creator: book.author, location: "", text: "", interpretation: "", principle: "", hall: "", priority: "",
+    record_type: "", source_title: book.title, source_creator: book.author, location: "", text: "", interpretation: "", scholar_name: "", scholar_basis: "", scholar_source: "", scholar_url: "", scholar_confidence: "", principle: "", hall: "", priority: "",
   }));
   const notesSheet = XLSX.utils.json_to_sheet(starterRows, { header: [...spreadsheetColumns] });
   const legendSheet = XLSX.utils.aoa_to_sheet([
@@ -20,7 +20,12 @@ export function createNotesTemplate(book: { title: string; author: string }): Bl
     ["source_title / source_creator", "Pre-filled — change only if this row is from a different source"],
     ["location", "Page, chapter, or timestamp (optional)"],
     ["text", "The passage, note, or question itself"],
-    ["interpretation", "What you think it means, in your own words (optional)"],
+    ["interpretation", "Alexandria's concise diagnosis of what the passage means (optional)"],
+    ["scholar_name", "Named historian/scholar used as supporting context (optional)"],
+    ["scholar_basis", "Short attributed summary of that scholar's relevant analysis; do not imply they commented on the exact quote unless they did"],
+    ["scholar_source", "Book/article/interview used for the scholarly basis (optional)"],
+    ["scholar_url", "Source URL for the scholarly basis when available (optional)"],
+    ["scholar_confidence", "direct, contextual, or none"],
     ["principle", "A standalone principle this row supports — fill this with or without 'text' (optional)"],
     ["hall", "Which Hall of Knowledge this belongs to (optional)"],
     ["priority", "Optional 1-5 importance score. 5 = unusually valuable or broadly applicable. Leave blank if unsure."],
@@ -55,7 +60,18 @@ function mapRow(row: ImportRow, sourceId: string): MappedRow {
     mapped.question = text;
   } else if (text) {
     mapped.highlight = { sourceId, text, location: values.location?.trim() || undefined };
-    if (interpretation) mapped.interpretation = { sourceId, text: interpretation, inputSource: "import" };
+    if (interpretation) mapped.interpretation = {
+      sourceId,
+      text: interpretation,
+      scholarName: values.scholar_name?.trim() || undefined,
+      scholarBasis: values.scholar_basis?.trim() || undefined,
+      scholarSourceTitle: values.scholar_source?.trim() || undefined,
+      scholarSourceUrl: values.scholar_url?.trim() || undefined,
+      scholarConfidence: ["direct","contextual","none"].includes((values.scholar_confidence || "").trim().toLowerCase())
+        ? (values.scholar_confidence!.trim().toLowerCase() as "direct" | "contextual" | "none")
+        : undefined,
+      inputSource: "import"
+    };
   }
 
   if (principle) {

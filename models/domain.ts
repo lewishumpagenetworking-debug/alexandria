@@ -45,7 +45,14 @@ export interface Interpretation {
   id: EntityId;
   highlightId?: EntityId;
   sourceId: EntityId;
+  /** Alexandria's reasoned diagnosis of the source passage. */
   text: string;
+  /** Optional named scholarly basis. This is supporting context, not an assertion that the scholar glossed the exact quote. */
+  scholarName?: string;
+  scholarBasis?: string;
+  scholarSourceTitle?: string;
+  scholarSourceUrl?: string;
+  scholarConfidence?: "direct" | "contextual" | "none";
   inputSource: InputSource;
   createdAt: ISODateString;
 }
