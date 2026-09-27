@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getDueRetrievals, recordRetrievalScore, type RetrievalQuality } from "@/lib/retrieval-store";
-import { getKnowledgeChallenge, type SculptorChallenge } from "@/lib/sculptor-challenge-engine";
+import { getDueRetrievals, type RetrievalQuality } from "@/lib/retrieval-store";
+import { getKnowledgeChallenge, recordSculptorChallengeResult, type SculptorChallenge } from "@/lib/sculptor-challenge-engine";
 import { awardPoints, POINTS } from "@/lib/points-store";
 import { getArcadeProgress } from "@/lib/arcade-store";
 import { RecallRally } from "@/components/recall-rally";
