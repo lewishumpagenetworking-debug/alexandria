@@ -46,7 +46,7 @@ function scoreUnit(unit: KnowledgeUnit, card: RetrievalCard, request: ChallengeR
 }
 
 function chooseType(unit: KnowledgeUnit, request: ChallengeRequest): SculptorChallengeType {
-  const allowed = request.allowedTypes?.length
+  const allowed: SculptorChallengeType[] = request.allowedTypes?.length
     ? request.allowedTypes
     : ["diagnosis", "retrieval", "principle", "boundary", "application"];
 
