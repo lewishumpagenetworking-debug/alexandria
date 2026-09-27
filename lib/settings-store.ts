@@ -5,9 +5,30 @@ export interface AppSettings {
   aiApiKey: string;
   aiModel: string;
   notificationsEnabled: boolean;
+  reminderMorning: boolean;
+  reminderAfternoon: boolean;
+  reminderEvening: boolean;
+  reminderMorningTime: string;
+  reminderAfternoonTime: string;
+  reminderEveningTime: string;
+  quietHoursStart: string;
+  quietHoursEnd: string;
 }
 
-const DEFAULT_SETTINGS: AppSettings = { aiProvider: "none", aiApiKey: "", aiModel: "", notificationsEnabled: false };
+const DEFAULT_SETTINGS: AppSettings = {
+  aiProvider: "none",
+  aiApiKey: "",
+  aiModel: "",
+  notificationsEnabled: false,
+  reminderMorning: true,
+  reminderAfternoon: true,
+  reminderEvening: true,
+  reminderMorningTime: "08:00",
+  reminderAfternoonTime: "15:00",
+  reminderEveningTime: "20:00",
+  quietHoursStart: "22:30",
+  quietHoursEnd: "07:00",
+};
 const KEY = "alexandria-settings-v1";
 
 function read<T>(key: string, fallback: T): T {

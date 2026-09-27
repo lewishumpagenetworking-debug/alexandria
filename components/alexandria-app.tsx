@@ -19,7 +19,7 @@ import { FunctionalAtriumView } from "@/components/views/functional-atrium";
 import { saveCapture } from "@/lib/capture-store";
 import { awardPoints, POINTS } from "@/lib/points-store";
 import { registerCard } from "@/lib/retrieval-store";
-import { maybeNotify } from "@/lib/growth-store";
+import { startNotificationScheduler } from "@/lib/notification-engine";
 import type { CaptureDraft } from "@/models/domain";
 import { registerBrowserTools, type AlexandriaSpace } from "@/services/mcp/browser-tools";
 
@@ -89,8 +89,8 @@ export default function AlexandriaApp() {
   }, []);
 
   useEffect(() => {
-    maybeNotify();
     setShowOnboarding(shouldShowOnboarding());
+    return startNotificationScheduler();
   }, []);
 
   useEffect(() => {

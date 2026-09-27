@@ -8,6 +8,7 @@ import { getDueCount } from "@/lib/retrieval-store";
 import { getTotalPoints, getPointsToday, listPointEvents } from "@/lib/points-store";
 import { listApplications } from "@/lib/apply-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
+import { ReadInsteadCard } from "@/components/read-instead-card";
 
 const LEVELS = [
   { name: "Initiate", min: 0 },
@@ -186,6 +187,7 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
       <div className="content">
         <div className="home-grid">
           <div className="home-main">
+            <ReadInsteadCard />
             <article className="next-action-card" onClick={() => navigate(nextAction.space)}>
               <div className="na-icon">{nextAction.icon}</div>
               <div className="na-body">
