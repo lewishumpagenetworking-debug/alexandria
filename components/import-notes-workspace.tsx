@@ -13,7 +13,7 @@ I will provide:
 2. My raw notes from a book/document.
 
 Return a completed spreadsheet using the EXISTING COLUMN HEADERS exactly:
-record_type, source_title, source_creator, location, text, interpretation, principle, hall, priority
+record_type, source_title, source_creator, location, text, interpretation, scholar_name, scholar_basis, scholar_source, scholar_url, scholar_confidence, principle, hall, priority
 
 Rules:
 - Do not rename, remove, reorder, or add columns.
@@ -23,7 +23,14 @@ Rules:
 - source_creator = author/creator.
 - location = page/chapter/timestamp when known.
 - text = the original highlight, raw note, or question.
-- interpretation = a concise explanation in my own words where justified.
+- interpretation = Alexandria's concise reasoned diagnosis of what the passage means.
+- scholar_name = a named historian or scholar only when genuinely relevant.
+- scholar_basis = a short attributed summary of that scholar's relevant analysis.
+- scholar_source = the book, article, or interview used for that scholarly basis.
+- scholar_url = the source link when available.
+- scholar_confidence = direct, contextual, or none.
+- Use contextual when the scholar addresses the broader issue rather than the exact quote.
+- If there is no defensible scholarly basis, leave the scholar fields blank and use none. Do not invent authority.
 - principle = a reusable standalone principle only when the note genuinely supports one.
 - hall is optional. Use only one of: Natural Philosophy, Human Nature, Strategy & Power, Commerce & Creation, Logic & Systems, The Examined Life.\n- priority is optional and must be 1-5. Use 5 only for unusually important, broadly applicable, or foundational ideas; 3 for normal useful notes; 1 for low-value context. Leave blank if unsure.\n- Spreadsheet row order does NOT control learning order. Treat every row as an independent knowledge item; Alexandria will prioritise and shuffle them.
 - Leave a cell blank rather than inventing information.
