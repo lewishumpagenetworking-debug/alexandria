@@ -13,6 +13,7 @@ export interface AppSettings {
   reminderEveningTime: string;
   quietHoursStart: string;
   quietHoursEnd: string;
+  reminderPulseEvery30: boolean;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -28,6 +29,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   reminderEveningTime: "20:00",
   quietHoursStart: "22:30",
   quietHoursEnd: "07:00",
+  reminderPulseEvery30: true,
 };
 const KEY = "alexandria-settings-v1";
 
