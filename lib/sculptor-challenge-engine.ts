@@ -96,6 +96,21 @@ function buildPrompt(unit: KnowledgeUnit, type: SculptorChallengeType, difficult
   };
 }
 
+export function buildKnowledgeChallengeForUnit(unit: KnowledgeUnit, card: RetrievalCard, request: ChallengeRequest = {}): SculptorChallenge {
+  const difficulty = request.difficulty ?? 1;
+  const type = chooseType(unit, request);
+  const body = buildPrompt(unit, type, difficulty);
+  if (request.recordSurface !== false) recordKnowledgeUnitSurfaced(unit.id);
+  return {
+    id: `challenge:${unit.id}:${type}`,
+    unit,
+    card,
+    type,
+    difficulty,
+    ...body,
+  };
+}
+
 export function getKnowledgeChallenge(request: ChallengeRequest = {}): SculptorChallenge | null {
   const excluded = request.excludeUnitIds ?? new Set<string>();
   const candidates = listKnowledgeUnits()
@@ -109,19 +124,7 @@ export function getKnowledgeChallenge(request: ChallengeRequest = {}): SculptorC
   const selected = candidates[0];
   if (!selected) return null;
 
-  const difficulty = request.difficulty ?? 1;
-  const type = chooseType(selected.unit, request);
-  const body = buildPrompt(selected.unit, type, difficulty);
-  if (request.recordSurface !== false) recordKnowledgeUnitSurfaced(selected.unit.id);
-
-  return {
-    id: `challenge:${selected.unit.id}:${type}`,
-    unit: selected.unit,
-    card: selected.card,
-    type,
-    difficulty,
-    ...body,
-  };
+  return buildKnowledgeChallengeForUnit(selected.unit, selected.card, request);
 }
 
 export function getKnowledgeChallengeDeck(sourceTitle?: string): KnowledgeUnit[] {
