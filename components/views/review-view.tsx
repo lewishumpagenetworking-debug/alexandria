@@ -80,10 +80,10 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
             </div>
             <p className="review-summary">
               {nailed > partial + blank
-                ? "Strong session. These concepts are moving into long-term memory."
+                ? "Strong interpretive alignment. These ideas are becoming easier to reconstruct accurately."
                 : blank > nailed
-                ? "Gaps identified. The blanks will resurface sooner — that's intentional."
-                : "Mixed results. Spaced repetition will adjust the schedule automatically."}
+                ? "Several interpretation gaps were exposed. Those quotes will return sooner so you can refine the diagnosis."
+                : "Mixed alignment. Spaced review will adjust automatically around the concepts that still need work."}
             </p>
             <div className="button-row">
               <button className="small-btn" onClick={() => navigate("home")}>Back to Home</button>
