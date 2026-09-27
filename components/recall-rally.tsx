@@ -427,9 +427,10 @@ export function RecallRally({ onExit }: { onExit: () => void }) {
         <span className="meta">{challenge.card.label}</span>
       </div>
 
-      <div className="manuscript compact-manuscript">
-        <div className="kicker">Knowledge under pressure</div>
-        {challenge.type === "recall" ? <p className="meta">The source stays hidden until you commit.</p> : <blockquote>“{challenge.sourceText}”</blockquote>}
+      <div className="source-reference rally-source-reference">
+        <div className="source-reference-book">Reference · {challenge.card.label}</div>
+        <blockquote>“{challenge.sourceText}”</blockquote>
+        <p>Use this exact source as the basis for the challenge below.</p>
       </div>
 
       {!revealed ? <>
