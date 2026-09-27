@@ -4,18 +4,20 @@ import { getDueCount } from "@/lib/retrieval-store";
 import { getSettings } from "@/lib/settings-store";
 
 export type ReminderSlot = "morning" | "afternoon" | "evening";
+export type NotificationSlot = ReminderSlot | "pulse" | "test";
 
 export interface NotificationDiagnostics {
   supported: boolean;
   permission: NotificationPermission | "unsupported";
   enabled: boolean;
   lastSentAt?: string;
-  lastSlot?: ReminderSlot | "test";
+  lastSlot?: NotificationSlot;
   lastOpenedAt?: string;
 }
 
 const SENT_KEY = "alexandria-notification-slots-v2";
 const STATUS_KEY = "alexandria-notification-status-v2";
+const PULSE_KEY = "alexandria-notification-pulses-v1";
 
 function todayISO() {
   return new Intl.DateTimeFormat("en-CA").format(new Date());
@@ -82,6 +84,40 @@ export function getNotificationDiagnostics(): NotificationDiagnostics {
   };
 }
 
+function pulseBucketKey(): string {
+  const now = new Date();
+  const minute = now.getMinutes() < 30 ? "00" : "30";
+  return `${todayISO()}:${String(now.getHours()).padStart(2, "0")}:${minute}`;
+}
+
+function getPulseMap(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(localStorage.getItem(PULSE_KEY) || "{}"); } catch { return {}; }
+}
+
+function pulseBody(): string {
+  const due = getDueCount();
+  const active = getActiveHabitReplacement();
+  const readToday = hasReadToday();
+  if (active) return `Reading sprint in progress: ${active.bookTitle ?? "your book"}. Keep the feed closed until the block is finished.`;
+  if (!readToday) return "Half-hour check: choose the book before the feed. Ten pages or ten minutes is enough to move the day forward.";
+  if (due > 0) return `Half-hour check: reading is logged. ${due} concept${due === 1 ? "" : "s"} still need retrieval to turn today's reading into memory.`;
+  return "Half-hour check: reading is in the bank and reviews are current. Protect the habit rather than defaulting to the feed.";
+}
+
+function checkHalfHourPulse(): boolean {
+  const settings = getSettings();
+  if (!settings.reminderPulseEvery30) return false;
+  const key = pulseBucketKey();
+  const map = getPulseMap();
+  if (map[key]) return false;
+  if (sendAlexandriaNotification(pulseBody(), "pulse")) {
+    localStorage.setItem(PULSE_KEY, JSON.stringify({ ...map, [key]: true }));
+    return true;
+  }
+  return false;
+}
+
 function bodyFor(slot: ReminderSlot): string {
   const due = getDueCount();
   const active = getActiveHabitReplacement();
@@ -106,11 +142,11 @@ function bodyFor(slot: ReminderSlot): string {
   return "Reading and reviews are current. Close the day knowing you chose the long game.";
 }
 
-export function sendAlexandriaNotification(body: string, slot: ReminderSlot | "test" = "test"): boolean {
+export function sendAlexandriaNotification(body: string, slot: NotificationSlot = "test"): boolean {
   if (typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") return false;
   const notification = new Notification("Alexandria", {
     body,
-    tag: slot === "test" ? "alexandria-test" : `alexandria-${slot}-${todayISO()}`,
+    tag: slot === "test" ? "alexandria-test" : `alexandria-${slot}-${todayISO()}-${slot === "pulse" ? Math.floor(nowMinutes() / 30) : ""}`,
   });
   writeStatus({ lastSentAt: new Date().toISOString(), lastSlot: slot });
   notification.onclick = () => {
@@ -126,6 +162,8 @@ export function checkScheduledNotifications(): void {
   const settings = getSettings();
   if (!settings.notificationsEnabled || !("Notification" in window) || Notification.permission !== "granted") return;
   if (isInQuietHours(settings.quietHoursStart, settings.quietHoursEnd)) return;
+
+  if (checkHalfHourPulse()) return;
 
   const current = nowMinutes();
   const slots: Array<{ slot: ReminderSlot; enabled: boolean; time: string; latest: number }> = [
