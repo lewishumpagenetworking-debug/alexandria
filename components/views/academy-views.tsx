@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { agoraScenarios, forumChallenges, interrogationQuestions } from "@/data/mock-data";
 import { PageHeader, Rule } from "@/components/page-header";
+import { SourceReference } from "@/components/source-reference";
 import { loadBooks } from "@/lib/application-store";
 import { listCaptures } from "@/lib/capture-store";
 import { listAgoraSessions, listForumSessions, type RecallStage } from "@/lib/academy-store";
@@ -29,14 +30,6 @@ function DurationPicker({ value, onChoose }: { value: number; onChoose: (seconds
 
 function LimitationNote({ children }: { children: string }) {
   return <p className="limitation-note">{children}</p>;
-}
-
-function SourceReference({ label, text, note }: { label: string; text: string; note?: string }) {
-  return <aside className="source-reference" aria-label="Reference for this question">
-    <div className="source-reference-book">Reference · {label}</div>
-    <blockquote>“{text}”</blockquote>
-    {note && <p>{note}</p>}
-  </aside>;
 }
 
 /** Purely additive: renders nothing unless an AI provider is configured in Settings. */
