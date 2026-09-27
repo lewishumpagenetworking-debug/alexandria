@@ -6,6 +6,7 @@ import { awardPoints, POINTS } from "@/lib/points-store";
 import { buildRallyChallenge, buildRallyDeck, chooseRallyCard, type RallyChallenge } from "@/lib/recall-rally-engine";
 import { saveRecallRallyRun } from "@/lib/recall-rally-store";
 import { recordRetrievalScore, recordKnowledgeEngagement, type RetrievalQuality } from "@/lib/retrieval-store";
+import { recordSculptorChallengeResult } from "@/lib/sculptor-challenge-engine";
 import { SourceReference } from "@/components/source-reference";
 
 type Phase = "setup" | "playing" | "challenge" | "level-complete" | "result";
@@ -279,8 +280,12 @@ export function RecallRally({ onExit }: { onExit: () => void }) {
 
   function scoreChallenge(quality: RetrievalQuality) {
     if (!challenge) return;
-    recordRetrievalScore(challenge.card.id, quality);
-    recordKnowledgeEngagement(challenge.card.refType, challenge.card.refId);
+    if (challenge.sculptor) {
+      recordSculptorChallengeResult(challenge.sculptor, answer, quality, "pong");
+    } else {
+      recordRetrievalScore(challenge.card.id, quality);
+      recordKnowledgeEngagement(challenge.card.refType, challenge.card.refId);
+    }
 
     const gainedXp = rewardFor(quality);
     if (gainedXp > 0) {
