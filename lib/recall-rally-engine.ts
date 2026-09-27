@@ -89,10 +89,10 @@ export function buildRallyChallenge(card: RetrievalCard, level: number, question
       return {
         card, type, sourceText: card.text, difficulty: Math.min(6, 1 + Math.floor(level / 2)),
         prompt: card.refType === "principle"
-          ? "State this principle from memory before revealing it."
-          : "Reconstruct the idea from memory before revealing the original.",
+          ? "Explain this principle in your own words and state why it matters."
+          : "Explain the central idea in your own words without merely copying the passage.",
         expected: card.text,
-        guidance: "Judge whether you preserved the central meaning, not whether you reproduced the exact wording.",
+        guidance: "The reference is visible so you can reason accurately. Judge whether your answer explains the central meaning rather than paraphrasing mechanically.",
       };
     }
   }
