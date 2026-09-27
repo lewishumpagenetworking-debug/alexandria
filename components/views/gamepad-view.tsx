@@ -61,8 +61,9 @@ export function GamePadView() {
 
   function scoreCard(quality: RetrievalQuality) {
     const challenge = quiz.challenges[quiz.index];
-  const card = challenge?.card;
-    recordRetrievalScore(card.id, quality);
+    if (!challenge) return;
+    const card = challenge.card;
+    recordSculptorChallengeResult(challenge, quiz.response, quality, "daily-challenge");
     if (quality !== "blank") {
       awardPoints("recall-check", `Daily challenge: ${card.label}`, quality === "nailed" ? POINTS.recallCheck : Math.floor(POINTS.recallCheck / 2));
     }
@@ -79,7 +80,8 @@ export function GamePadView() {
   const nailed = quiz.scores.filter((s) => s === "nailed").length;
   const partial = quiz.scores.filter((s) => s === "partial").length;
   const blank = quiz.scores.filter((s) => s === "blank").length;
-  const card = quiz.challenges[quiz.index];
+  const challenge = quiz.challenges[quiz.index];
+  const card = challenge?.card;
 
   if (mode === "rally") return <RecallRally onExit={() => setMode("menu")} />;
 
