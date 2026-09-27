@@ -194,6 +194,15 @@ export interface KnowledgeUnitMastery {
   easeFactor: number;
 }
 
+export interface KnowledgeAttempt {
+  id: EntityId;
+  challengeType: "diagnosis" | "retrieval" | "principle" | "boundary" | "application";
+  response: string;
+  quality: "blank" | "partial" | "nailed";
+  createdAt: ISODateString;
+  surface?: "review" | "daily-challenge" | "pong" | "path" | "other";
+}
+
 export interface KnowledgeUnit {
   id: EntityId;
   sourceId: EntityId;
@@ -220,6 +229,7 @@ export interface KnowledgeUnit {
   thenAction?: string;
   rationale?: string;
   situationTags: string[];
+  diagnosisHistory: KnowledgeAttempt[];
   mastery: KnowledgeUnitMastery;
   priority: number;
   lastSurfacedAt?: ISODateString;
