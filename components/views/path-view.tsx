@@ -93,6 +93,11 @@ export function PathView({ navigate }: { navigate: (space: AlexandriaSpace) => v
       <div><strong>Saved for later</strong><span>{savedDrafts.length} unfinished {savedDrafts.length === 1 ? "draft" : "drafts"}</span></div>
       <div className="saved-learning-items">{savedDrafts.slice(0, 4).map((draft) => <button key={draft.id} className="pill" onClick={() => setResumeDraft(draft)}>{draft.sourceRef?.label ?? "Resume draft"} · {new Date(draft.savedAt).toLocaleDateString("en-GB")}</button>)}</div>
     </div>}
+    {current.sourceRef && <div className="path-source-banner">
+      <div className="kicker">Active knowledge thread · {current.sourceRef.label}</div>
+      <blockquote>“{current.sourceRef.text}”</blockquote>
+      <span>Every question below should be answered against this reference.</span>
+    </div>}
     {current.exerciseType === "interrogation" && <InterrogationView
       key={`${current.id}:${current.sourceRef?.id ?? "none"}`}
       passage={current.sourceRef ? { text: current.sourceRef.text, source: current.sourceRef.label } : undefined}
