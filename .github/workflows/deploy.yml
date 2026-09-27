@@ -19,12 +19,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
+
       - run: npm ci
       - run: npm run build
+
+      - name: Validate exported site
+        run: |
+          test -f out/index.html
+          test -d out/_next/static
+          touch out/.nojekyll
+          printf '%s\n' "Alexandria deployment $(git rev-parse HEAD)" > out/health.txt
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./out
@@ -36,16 +49,11 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      # The repository is currently also configured for GitHub's automatic
-      # branch/Jekyll Pages build. That generated deployment renders README.md
-      # and has been finishing a few seconds after this app deployment,
-      # overwriting Alexandria. Wait long enough for that legacy deployment to
-      # finish, then publish the real Next.js export last.
-      #
-      # Once Pages > Build and deployment > Source is switched to
-      # "GitHub Actions", this delay can be removed.
+      # This repository still has GitHub's legacy branch/Jekyll Pages build enabled.
+      # It races the real app deployment. Keep the app deployment last until the
+      # repository Pages source is changed to "GitHub Actions" in Settings > Pages.
       - name: Avoid legacy Pages deployment race
-        run: sleep 90
+        run: sleep 120
 
       - name: Deploy Alexandria app to GitHub Pages
         id: deployment
