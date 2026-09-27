@@ -140,7 +140,8 @@ export function ImportNotesWorkspace({ onBack, onComplete, initialSourceId = "" 
 
         <div className="template-map top-gap">
           <div><strong>text</strong><span>Original highlight, note, or question → Notes / Review</span></div>
-          <div><strong>interpretation</strong><span>What it means in your own words → source understanding</span></div>
+          <div><strong>interpretation</strong><span>Alexandria diagnosis → revealed after your Review response</span></div>
+          <div><strong>scholar_*</strong><span>Optional scholar, basis, source, link, confidence → Review evidence layer</span></div>
           <div><strong>principle</strong><span>Reusable conclusion → Knowledge Map + Review</span></div>
           <div><strong>hall</strong><span>Optional domain tag → Knowledge Map Hall</span></div>
           <div><strong>location</strong><span>Page / chapter / timestamp → provenance</span></div>\n          <div><strong>priority</strong><span>Optional 1–5 importance signal → helps Alexandria choose what to surface first</span></div>
