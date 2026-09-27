@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getDueRetrievals, recordRetrievalScore, type RetrievalCard, type RetrievalQuality } from "@/lib/retrieval-store";
+import { getDueRetrievals, type RetrievalQuality } from "@/lib/retrieval-store";
+import { getKnowledgeChallenge, recordSculptorChallengeResult, type SculptorChallenge } from "@/lib/sculptor-challenge-engine";
 import { awardPoints, POINTS } from "@/lib/points-store";
 import { getArcadeProgress } from "@/lib/arcade-store";
 import { RecallRally } from "@/components/recall-rally";
@@ -10,7 +11,7 @@ import { SourceReference } from "@/components/source-reference";
 type GameMode = "menu" | "quiz" | "quiz-result" | "rally";
 
 interface QuizState {
-  cards: RetrievalCard[];
+  challenges: SculptorChallenge[];
   index: number;
   revealed: boolean;
   scores: RetrievalQuality[];
@@ -22,7 +23,7 @@ const QUIZ_SIZE = 5;
 export function GamePadView() {
   const [mode, setMode] = useState<GameMode>("menu");
   const [dueCount, setDueCount] = useState(0);
-  const [quiz, setQuiz] = useState<QuizState>({ cards: [], index: 0, revealed: false, scores: [], response: "" });
+  const [quiz, setQuiz] = useState<QuizState>({ challenges: [], index: 0, revealed: false, scores: [], response: "" });
   const [arcade, setArcade] = useState(() => getArcadeProgress());
 
   useEffect(() => {
@@ -36,9 +37,21 @@ export function GamePadView() {
   }, []);
 
   function startQuiz() {
-    const cards = getDueRetrievals(QUIZ_SIZE);
-    if (cards.length === 0) return;
-    setQuiz({ cards, index: 0, revealed: false, scores: [], response: "" });
+    const challenges: SculptorChallenge[] = [];
+    const excluded = new Set<string>();
+    for (let i = 0; i < QUIZ_SIZE; i++) {
+      const challenge = getKnowledgeChallenge({
+        allowedTypes: ["diagnosis", "principle", "boundary", "application", "retrieval"],
+        difficulty: 2 + i,
+        excludeUnitIds: excluded,
+        dueOnly: true,
+      });
+      if (!challenge) break;
+      challenges.push(challenge);
+      excluded.add(challenge.unit.id);
+    }
+    if (challenges.length === 0) return;
+    setQuiz({ challenges, index: 0, revealed: false, scores: [], response: "" });
     setMode("quiz");
   }
 
@@ -47,14 +60,16 @@ export function GamePadView() {
   }
 
   function scoreCard(quality: RetrievalQuality) {
-    const card = quiz.cards[quiz.index];
-    recordRetrievalScore(card.id, quality);
+    const challenge = quiz.challenges[quiz.index];
+    if (!challenge) return;
+    const card = challenge.card;
+    recordSculptorChallengeResult(challenge, quiz.response, quality, "daily-challenge");
     if (quality !== "blank") {
       awardPoints("recall-check", `Daily challenge: ${card.label}`, quality === "nailed" ? POINTS.recallCheck : Math.floor(POINTS.recallCheck / 2));
     }
     window.dispatchEvent(new Event("alexandria:data"));
     const newScores = [...quiz.scores, quality];
-    if (quiz.index + 1 >= quiz.cards.length) {
+    if (quiz.index + 1 >= quiz.challenges.length) {
       setQuiz((q) => ({ ...q, scores: newScores, revealed: false }));
       setMode("quiz-result");
     } else {
@@ -65,19 +80,20 @@ export function GamePadView() {
   const nailed = quiz.scores.filter((s) => s === "nailed").length;
   const partial = quiz.scores.filter((s) => s === "partial").length;
   const blank = quiz.scores.filter((s) => s === "blank").length;
-  const card = quiz.cards[quiz.index];
+  const challenge = quiz.challenges[quiz.index];
+  const card = challenge?.card;
 
   if (mode === "rally") return <RecallRally onExit={() => setMode("menu")} />;
 
-  if (mode === "quiz" && card) {
+  if (mode === "quiz" && card && challenge) {
     return (
       <section className="view active">
         <div className="content">
           <button className="ghost-btn back-btn" onClick={() => setMode("menu")}>← Exit</button>
-          <div className="eyebrow">Daily Challenge · {quiz.index + 1} of {quiz.cards.length}</div>
+          <div className="eyebrow">Daily Challenge · {quiz.index + 1} of {quiz.challenges.length}</div>
 
           <div className="quiz-progress-row">
-            {quiz.cards.map((_, i) => (
+            {quiz.challenges.map((_, i) => (
               <span key={i} className={`quiz-dot${i < quiz.index ? " done" : i === quiz.index ? " active" : ""}`} />
             ))}
           </div>
@@ -89,14 +105,14 @@ export function GamePadView() {
             </div>
 
             <SourceReference
-              label={card.label}
-              text={card.text}
-              note="Use this exact source as the basis for your answer. Daily Challenge now tests understanding rather than asking you to guess which quote Alexandria selected."
+              label={challenge.unit.sourceTitle}
+              text={challenge.unit.quote}
+              note={challenge.unit.location ? `${challenge.unit.location} · Use this exact source as the basis for your answer.` : "Use this exact source as the basis for your answer."}
             />
 
             {!quiz.revealed ? (
               <div className="recall-phase">
-                <p className="review-prompt">Explain the central idea in your own words. What is the claim, and why might it matter?</p>
+                <p className="review-prompt">{challenge.prompt}</p>
                 <textarea
                   className="recall-input"
                   value={quiz.response}
@@ -118,8 +134,9 @@ export function GamePadView() {
                   </div>
                 )}
                 <div className="original-text">
-                  <div className="recall-label">Reference source</div>
-                  <blockquote>{card.text}</blockquote>
+                  <div className="recall-label">Alexandria reference answer</div>
+                  <blockquote>{challenge.expected || challenge.unit.alexandriaDiagnosis || challenge.unit.principle || challenge.unit.quote}</blockquote>
+                  <p className="meta">{challenge.guidance}</p>
                 </div>
                 <div className="score-row">
                   <button className="score-btn miss" onClick={() => scoreCard("blank")}>Blank<span>Couldn't recall</span></button>
@@ -147,7 +164,7 @@ export function GamePadView() {
               <div className="result-stat miss"><b>{blank}</b><span>Blank</span></div>
             </div>
             <p className="review-summary">
-              {nailed >= quiz.cards.length * 0.8
+              {nailed >= quiz.challenges.length * 0.8
                 ? "Excellent recall. These concepts are consolidating well."
                 : blank > nailed
                 ? "Several gaps. The blank cards will resurface sooner — that's how the system works."
@@ -155,7 +172,7 @@ export function GamePadView() {
             </p>
             <div className="button-row">
               <button className="small-btn" onClick={() => setMode("menu")}>Back to Game Pad</button>
-              {dueCount > quiz.cards.length && (
+              {dueCount > quiz.challenges.length && (
                 <button className="small-btn primary" onClick={startQuiz}>Another round</button>
               )}
             </div>

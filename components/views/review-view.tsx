@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getDueRetrievals, getDueCount, recordRetrievalScore, type RetrievalCard, type RetrievalQuality } from "@/lib/retrieval-store";
+import { type RetrievalQuality } from "@/lib/retrieval-store";
+import { getKnowledgeChallenge, recordSculptorChallengeResult, type SculptorChallenge } from "@/lib/sculptor-challenge-engine";
 import { awardPoints, POINTS } from "@/lib/points-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 import { SourceReference } from "@/components/source-reference";
@@ -10,7 +11,7 @@ import { getReviewEvidence } from "@/lib/review-evidence";
 type Phase = "idle" | "recall" | "revealed" | "done";
 
 export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) => void }) {
-  const [queue, setQueue] = useState<RetrievalCard[]>([]);
+  const [queue, setQueue] = useState<SculptorChallenge[]>([]);
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>("idle");
   const [response, setResponse] = useState("");
@@ -18,15 +19,29 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
   const [totalDue, setTotalDue] = useState(0);
 
   useEffect(() => {
-    const dueHighlights = getDueRetrievals(100).filter((item) => item.refType === "highlight").slice(0, 20);
-    setQueue(dueHighlights);
-    setTotalDue(dueHighlights.length);
-    setPhase(dueHighlights.length > 0 ? "recall" : "done");
+    const challenges: SculptorChallenge[] = [];
+    const excluded = new Set<string>();
+    for (let i = 0; i < 20; i++) {
+      const challenge = getKnowledgeChallenge({
+        allowedTypes: ["diagnosis"],
+        difficulty: 2,
+        dueOnly: true,
+        excludeUnitIds: excluded,
+        recordSurface: false,
+      });
+      if (!challenge) break;
+      challenges.push(challenge);
+      excluded.add(challenge.unit.id);
+    }
+    setQueue(challenges);
+    setTotalDue(challenges.length);
+    setPhase(challenges.length > 0 ? "recall" : "done");
   }, []);
 
   function score(quality: RetrievalQuality) {
-    const card = queue[index];
-    recordRetrievalScore(card.id, quality);
+    const challenge = queue[index];
+    const card = challenge.card;
+    recordSculptorChallengeResult(challenge, response, quality, "review");
     if (quality !== "blank") {
       awardPoints("recall-check", `Reviewed: ${card.label}`, quality === "nailed" ? POINTS.recallCheck : Math.floor(POINTS.recallCheck / 2));
     }
@@ -42,7 +57,8 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
     }
   }
 
-  const card = queue[index];
+  const challenge = queue[index];
+  const card = challenge?.card;
   const evidence = card ? getReviewEvidence(card) : null;
   const nailed = scores.filter((s) => s === "nailed").length;
   const partial = scores.filter((s) => s === "partial").length;
@@ -95,7 +111,7 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
     );
   }
 
-  if (!card) return null;
+  if (!card || !challenge) return null;
 
   return (
     <section className="view active">
@@ -113,14 +129,14 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
           </div>
 
           <SourceReference
-            label={card.label}
-            text={card.text}
-            note="First diagnose the quote yourself. Alexandria's interpretation and scholarly basis stay hidden until you commit."
+            label={challenge.unit.sourceTitle}
+            text={challenge.unit.quote}
+            note={challenge.unit.location ? `${challenge.unit.location} · First diagnose the quote yourself. Alexandria's interpretation and scholarly basis stay hidden until you commit.` : "First diagnose the quote yourself. Alexandria's interpretation and scholarly basis stay hidden until you commit."}
           />
 
           {phase === "recall" && (
             <div className="recall-phase">
-              <p className="review-prompt">What do you think this quote means? Diagnose the underlying idea, motive, assumption, or lesson in your own words.</p>
+              <p className="review-prompt">{challenge.prompt}</p>
               <textarea
                 className="recall-input"
                 value={response}

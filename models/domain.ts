@@ -171,3 +171,68 @@ export interface CaptureDraft {
   inputSource: InputSource;
   createdAt: ISODateString;
 }
+
+
+export type KnowledgeUnitState =
+  | "captured"
+  | "diagnosed"
+  | "retrieving"
+  | "understood"
+  | "applied"
+  | "integrated";
+
+export interface KnowledgeUnitMastery {
+  state: KnowledgeUnitState;
+  strength: number;
+  reviewCount: number;
+  successCount: number;
+  partialCount: number;
+  missCount: number;
+  nextReviewAt?: ISODateString;
+  lastReviewedAt?: ISODateString;
+  intervalDays: number;
+  easeFactor: number;
+}
+
+export interface KnowledgeAttempt {
+  id: EntityId;
+  challengeType: "diagnosis" | "retrieval" | "principle" | "boundary" | "application";
+  response: string;
+  quality: "blank" | "partial" | "nailed";
+  createdAt: ISODateString;
+  surface?: "review" | "daily-challenge" | "pong" | "path" | "other";
+}
+
+export interface KnowledgeUnit {
+  id: EntityId;
+  sourceId: EntityId;
+  sourceTitle: string;
+  sourceCreator?: string;
+  location?: string;
+  quote: string;
+  highlightId?: EntityId;
+  interpretationId?: EntityId;
+  principleId?: EntityId;
+  alexandriaDiagnosis?: string;
+  scholarName?: string;
+  scholarBasis?: string;
+  scholarSourceTitle?: string;
+  scholarSourceUrl?: string;
+  scholarConfidence?: "direct" | "contextual" | "none";
+  principle?: string;
+  principleExplanation?: string;
+  assumptions: string[];
+  fundamentals: string[];
+  boundaries: string[];
+  counterarguments: string[];
+  ifTrigger?: string;
+  thenAction?: string;
+  rationale?: string;
+  situationTags: string[];
+  diagnosisHistory: KnowledgeAttempt[];
+  mastery: KnowledgeUnitMastery;
+  priority: number;
+  lastSurfacedAt?: ISODateString;
+  timesSurfaced: number;
+  createdAt: ISODateString;
+}

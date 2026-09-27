@@ -1,7 +1,8 @@
-import { getInterpretationsForHighlight, getPrinciplesForHighlight } from "@/lib/library-notes-store";
-import { listCards, type RetrievalCard } from "@/lib/retrieval-store";
+import { getKnowledgeUnitByHighlight, getKnowledgeUnitCard } from "@/lib/knowledge-unit-store";
+import { buildKnowledgeChallengeForUnit, getKnowledgeChallengeDeck, type SculptorChallenge, type SculptorChallengeType } from "@/lib/sculptor-challenge-engine";
+import type { RetrievalCard } from "@/lib/retrieval-store";
 
-export type RallyQuestionType = "recall" | "meaning" | "principle" | "application";
+export type RallyQuestionType = "recall" | "meaning" | "principle" | "application" | "boundary";
 
 export interface RallyChallenge {
   card: RetrievalCard;
@@ -11,6 +12,7 @@ export interface RallyChallenge {
   sourceText: string;
   guidance: string;
   difficulty: number;
+  sculptor?: SculptorChallenge;
 }
 
 function stableNoise(input: string): number {
@@ -33,10 +35,9 @@ function scoreCard(card: RetrievalCard, level: number, usedIds: Set<string>): nu
 }
 
 export function buildRallyDeck(sourceTitle?: string): RetrievalCard[] {
-  const cards = listCards();
-  return sourceTitle && sourceTitle !== "all"
-    ? cards.filter((card) => card.label === sourceTitle)
-    : cards;
+  return getKnowledgeChallengeDeck(sourceTitle)
+    .map((unit) => getKnowledgeUnitCard(unit))
+    .filter((card): card is RetrievalCard => Boolean(card));
 }
 
 export function chooseRallyCard(deck: RetrievalCard[], level: number, usedIds: Set<string>): RetrievalCard | null {
@@ -46,60 +47,51 @@ export function chooseRallyCard(deck: RetrievalCard[], level: number, usedIds: S
   return (fresh ?? ranked[0])?.card ?? null;
 }
 
+function allowedTypesForLevel(level: number): SculptorChallengeType[] {
+  if (level <= 2) return ["retrieval", "diagnosis"];
+  if (level <= 4) return ["diagnosis", "retrieval", "principle"];
+  if (level <= 6) return ["principle", "diagnosis", "boundary"];
+  return ["application", "boundary", "principle", "diagnosis"];
+}
+
 export function buildRallyChallenge(card: RetrievalCard, level: number, questionIndex: number): RallyChallenge {
-  const linkedInterpretation = card.refType === "highlight" ? getInterpretationsForHighlight(card.refId)[0]?.text : undefined;
-  const linkedPrinciple = card.refType === "highlight" ? getPrinciplesForHighlight(card.refId)[0]?.statement : undefined;
-
-  const preferred: RallyQuestionType[] =
-    level <= 2 ? ["recall"] :
-    level <= 4 ? ["meaning", "recall"] :
-    level <= 6 ? ["principle", "meaning", "recall"] :
-    ["application", "principle", "meaning", "recall"];
-
-  const rotate = questionIndex % preferred.length;
-  const ordered = [...preferred.slice(rotate), ...preferred.slice(0, rotate)];
-
-  for (const type of ordered) {
-    if (type === "meaning" && linkedInterpretation) {
-      return {
-        card, type, sourceText: card.text, difficulty: Math.min(6, 2 + Math.floor(level / 2)),
-        prompt: "Explain what this passage means in plain language.",
-        expected: linkedInterpretation,
-        guidance: "Compare your answer with the interpretation captured from this exact imported row.",
-      };
-    }
-    if (type === "principle" && linkedPrinciple) {
-      return {
-        card, type, sourceText: card.text, difficulty: Math.min(6, 3 + Math.floor(level / 2)),
-        prompt: "What reusable principle was derived from this passage?",
-        expected: linkedPrinciple,
-        guidance: "State the principle without copying the quote. Then compare it with the imported principle.",
-      };
-    }
-    if (type === "application") {
-      const base = linkedPrinciple || linkedInterpretation || card.text;
-      return {
-        card, type, sourceText: card.text, difficulty: Math.min(6, 4 + Math.floor(level / 2)),
-        prompt: "Give one concrete situation where this idea would change a decision or action.",
-        expected: base,
-        guidance: "There is no single wording to match. Your application should clearly use the idea, name a real situation, and change what someone would do.",
-      };
-    }
-    if (type === "recall") {
-      return {
-        card, type, sourceText: card.text, difficulty: Math.min(6, 1 + Math.floor(level / 2)),
-        prompt: card.refType === "principle"
-          ? "Explain this principle in your own words and state why it matters."
-          : "Explain the central idea in your own words without merely copying the passage.",
-        expected: card.text,
-        guidance: "The reference is visible so you can reason accurately. Judge whether your answer explains the central meaning rather than paraphrasing mechanically.",
-      };
-    }
+  const unit = card.refType === "highlight" ? getKnowledgeUnitByHighlight(card.refId) : undefined;
+  if (!unit) {
+    return {
+      card,
+      type: "recall",
+      sourceText: card.text,
+      difficulty: Math.min(8, 1 + Math.floor(level / 2)),
+      prompt: "Explain the central idea in your own words.",
+      expected: card.text,
+      guidance: "Preserve the meaning rather than reproducing the wording.",
+    };
   }
 
+  const allowed = allowedTypesForLevel(level);
+  const rotate = questionIndex % allowed.length;
+  const rotated = [...allowed.slice(rotate), ...allowed.slice(0, rotate)];
+  const challenge = buildKnowledgeChallengeForUnit(unit, card, {
+    allowedTypes: rotated,
+    difficulty: level,
+  });
+
+  const typeMap: Record<SculptorChallengeType, RallyQuestionType> = {
+    retrieval: "recall",
+    diagnosis: "meaning",
+    principle: "principle",
+    boundary: "boundary",
+    application: "application",
+  };
+
   return {
-    card, type: "recall", sourceText: card.text, difficulty: 1,
-    prompt: "What do you remember?", expected: card.text,
-    guidance: "Preserve the central meaning.",
+    card,
+    type: typeMap[challenge.type],
+    sourceText: unit.quote,
+    difficulty: challenge.difficulty,
+    prompt: challenge.prompt,
+    expected: challenge.expected,
+    guidance: challenge.guidance,
+    sculptor: challenge,
   };
 }
