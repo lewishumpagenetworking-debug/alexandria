@@ -5,6 +5,7 @@ import { getDueRetrievals, getDueCount, recordRetrievalScore, type RetrievalCard
 import { awardPoints, POINTS } from "@/lib/points-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 import { SourceReference } from "@/components/source-reference";
+import { getReviewEvidence } from "@/lib/review-evidence";
 
 type Phase = "idle" | "recall" | "revealed" | "done";
 
@@ -42,6 +43,7 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
   }
 
   const card = queue[index];
+  const evidence = card ? getReviewEvidence(card) : null;
   const nailed = scores.filter((s) => s === "nailed").length;
   const partial = scores.filter((s) => s === "partial").length;
   const blank = scores.filter((s) => s === "blank").length;
@@ -72,9 +74,9 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
           <h1 className="page-title">Session complete</h1>
           <article className="card review-result">
             <div className="result-stats">
-              <div className="result-stat good"><b>{nailed}</b><span>Nailed it</span></div>
+              <div className="result-stat good"><b>{nailed}</b><span>Exact</span></div>
               <div className="result-stat partial"><b>{partial}</b><span>Partial</span></div>
-              <div className="result-stat miss"><b>{blank}</b><span>Blank</span></div>
+              <div className="result-stat miss"><b>{blank}</b><span>Nowhere near</span></div>
             </div>
             <p className="review-summary">
               {nailed > partial + blank
@@ -113,43 +115,53 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
           <SourceReference
             label={card.label}
             text={card.text}
-            note="The source remains visible so your reasoning is grounded. Review tests whether you can explain and use the idea accurately."
+            note="First diagnose the quote yourself. Alexandria's interpretation and scholarly basis stay hidden until you commit."
           />
 
           {phase === "recall" && (
             <div className="recall-phase">
-              <p className="review-prompt">Explain this idea in your own words. What is essential, and where would it be useful?</p>
+              <p className="review-prompt">What do you think this quote means? Diagnose the underlying idea, motive, assumption, or lesson in your own words.</p>
               <textarea
                 className="recall-input"
                 value={response}
                 onChange={(e) => setResponse(e.target.value)}
-                placeholder="Explain the idea and its relevance using the reference above…"
+                placeholder="Your diagnosis of the quote…"
                 autoFocus
               />
               <div className="button-row">
-                <button className="small-btn" onClick={() => { setPhase("revealed"); }}>I need help comparing</button>
-                <button className="small-btn primary" disabled={!response.trim()} onClick={() => setPhase("revealed")}>Commit and compare</button>
+                <button className="small-btn" onClick={() => { setResponse("(No diagnosis recorded)"); setPhase("revealed"); }}>Show Alexandria's diagnosis</button>
+                <button className="small-btn primary" disabled={!response.trim()} onClick={() => setPhase("revealed")}>Commit my diagnosis →</button>
               </div>
             </div>
           )}
 
-          {phase === "revealed" && (
+          {phase === "revealed" && evidence && (
             <div className="reveal-phase">
-              {response && (
-                <div className="your-recall">
-                  <div className="recall-label">Your recall</div>
-                  <p>{response}</p>
-                </div>
-              )}
-              <div className="original-text">
-                <div className="recall-label">Reference source</div>
-                <blockquote>{card.text}</blockquote>
+              <div className="your-recall">
+                <div className="recall-label">Your diagnosis</div>
+                <p>{response}</p>
               </div>
-              <p className="score-prompt">How well did you recall it?</p>
+
+              <div className="review-diagnosis">
+                <div className="recall-label">Alexandria's diagnosis</div>
+                <p>{evidence.diagnosis}</p>
+              </div>
+
+              <div className="review-scholar">
+                <div className="recall-label">Scholarly basis</div>
+                {evidence.scholarName && evidence.scholarBasis ? <>
+                  <p><strong>{evidence.scholarName}</strong> · {evidence.scholarConfidence === "direct" ? "directly relevant" : "contextual support"}</p>
+                  <p>{evidence.scholarBasis}</p>
+                  {evidence.scholarSourceTitle && <p className="meta">Source: {evidence.scholarSourceTitle}</p>}
+                  {evidence.scholarSourceUrl && <a href={evidence.scholarSourceUrl} target="_blank" rel="noreferrer" className="action-link">Open scholarly source ↗</a>}
+                </> : <p className="meta">No defensible external scholar mapping is stored for this quote yet. Alexandria is showing its diagnosis without pretending to have external authority behind it.</p>}
+              </div>
+
+              <p className="score-prompt">Compare your diagnosis with Alexandria's. How close were you?</p>
               <div className="score-row">
-                <button className="score-btn miss" onClick={() => score("blank")}>Blank<span>Couldn't recall</span></button>
-                <button className="score-btn partial" onClick={() => score("partial")}>Partial<span>Got the gist</span></button>
-                <button className="score-btn good" onClick={() => score("nailed")}>Nailed it<span>Clear and accurate</span></button>
+                <button className="score-btn miss" onClick={() => score("blank")}>Nowhere near<span>Core meaning was missed</span></button>
+                <button className="score-btn partial" onClick={() => score("partial")}>Partial<span>Some important overlap</span></button>
+                <button className="score-btn good" onClick={() => score("nailed")}>Exact<span>Same essential diagnosis</span></button>
               </div>
             </div>
           )}
