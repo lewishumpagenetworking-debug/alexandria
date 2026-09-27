@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { recordRetrievalScore, type RetrievalQuality } from "@/lib/retrieval-store";
-import { getKnowledgeChallenge, type SculptorChallenge } from "@/lib/sculptor-challenge-engine";
+import { type RetrievalQuality } from "@/lib/retrieval-store";
+import { getKnowledgeChallenge, recordSculptorChallengeResult, type SculptorChallenge } from "@/lib/sculptor-challenge-engine";
 import { awardPoints, POINTS } from "@/lib/points-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 import { SourceReference } from "@/components/source-reference";
@@ -41,7 +41,7 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
   function score(quality: RetrievalQuality) {
     const challenge = queue[index];
     const card = challenge.card;
-    recordRetrievalScore(card.id, quality);
+    recordSculptorChallengeResult(challenge, response, quality, "review");
     if (quality !== "blank") {
       awardPoints("recall-check", `Reviewed: ${card.label}`, quality === "nailed" ? POINTS.recallCheck : Math.floor(POINTS.recallCheck / 2));
     }
