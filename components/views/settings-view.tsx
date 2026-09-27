@@ -112,7 +112,7 @@ export function SettingsView() {
     <article className="card top-gap">
       <div className="kicker">Habit reminders</div>
       <h2>Reading and retention notifications</h2>
-      <p className="meta top-gap">These reminders are state-aware: they react to whether you have read today, whether reviews are due, and whether a Read Instead sprint is unfinished. This static GitHub Pages build can reliably schedule them only while Alexandria is open or suspended in a live browser/PWA context. A truly closed-app push requires a push backend.</p>
+      <p className="meta top-gap">These reminders are state-aware: they react to whether you have read today, whether reviews are due, and whether a Read Instead sprint is unfinished. This static GitHub Pages build can schedule them while Alexandria is active and catch missed windows when you reopen or resume it. A truly closed-app push requires a push backend.</p>
 
       <div className="button-row top-gap">
         <button className={`small-btn${settings.notificationsEnabled ? " primary" : ""}`} onClick={() => toggleNotifications(!settings.notificationsEnabled)} disabled={notifPermission === "unsupported"}>
