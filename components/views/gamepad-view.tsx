@@ -5,6 +5,7 @@ import { getDueRetrievals, recordRetrievalScore, type RetrievalCard, type Retrie
 import { awardPoints, POINTS } from "@/lib/points-store";
 import { getArcadeProgress } from "@/lib/arcade-store";
 import { RecallRally } from "@/components/recall-rally";
+import { SourceReference } from "@/components/source-reference";
 
 type GameMode = "menu" | "quiz" | "quiz-result" | "rally";
 
@@ -87,19 +88,25 @@ export function GamePadView() {
               <span className="meta">{card.label}</span>
             </div>
 
+            <SourceReference
+              label={card.label}
+              text={card.text}
+              note="Use this exact source as the basis for your answer. Daily Challenge now tests understanding rather than asking you to guess which quote Alexandria selected."
+            />
+
             {!quiz.revealed ? (
               <div className="recall-phase">
-                <p className="review-prompt">What do you remember?</p>
+                <p className="review-prompt">Explain the central idea in your own words. What is the claim, and why might it matter?</p>
                 <textarea
                   className="recall-input"
                   value={quiz.response}
                   onChange={(e) => setQuiz((q) => ({ ...q, response: e.target.value }))}
-                  placeholder="Recall from memory…"
+                  placeholder="Explain the idea clearly, using the reference above…"
                   autoFocus
                 />
                 <div className="button-row">
-                  <button className="small-btn" onClick={revealCard}>Show answer</button>
-                  <button className="small-btn primary" onClick={revealCard}>Reveal and score</button>
+                  <button className="small-btn" onClick={revealCard}>Compare with source</button>
+                  <button className="small-btn primary" onClick={revealCard}>Commit and score</button>
                 </div>
               </div>
             ) : (
@@ -111,7 +118,7 @@ export function GamePadView() {
                   </div>
                 )}
                 <div className="original-text">
-                  <div className="recall-label">Original</div>
+                  <div className="recall-label">Reference source</div>
                   <blockquote>{card.text}</blockquote>
                 </div>
                 <div className="score-row">
