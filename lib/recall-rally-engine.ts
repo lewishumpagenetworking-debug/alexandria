@@ -1,5 +1,5 @@
 import { getKnowledgeUnitByHighlight, getKnowledgeUnitCard } from "@/lib/knowledge-unit-store";
-import { buildKnowledgeChallengeForUnit, getKnowledgeChallengeDeck, type SculptorChallengeType } from "@/lib/sculptor-challenge-engine";
+import { buildKnowledgeChallengeForUnit, getKnowledgeChallengeDeck, type SculptorChallenge, type SculptorChallengeType } from "@/lib/sculptor-challenge-engine";
 import type { RetrievalCard } from "@/lib/retrieval-store";
 
 export type RallyQuestionType = "recall" | "meaning" | "principle" | "application" | "boundary";
@@ -12,6 +12,7 @@ export interface RallyChallenge {
   sourceText: string;
   guidance: string;
   difficulty: number;
+  sculptor?: SculptorChallenge;
 }
 
 function stableNoise(input: string): number {
@@ -91,5 +92,6 @@ export function buildRallyChallenge(card: RetrievalCard, level: number, question
     prompt: challenge.prompt,
     expected: challenge.expected,
     guidance: challenge.guidance,
+    sculptor: challenge,
   };
 }
