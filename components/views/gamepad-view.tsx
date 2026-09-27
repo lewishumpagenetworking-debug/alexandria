@@ -164,6 +164,12 @@ export function GamePadView() {
         <div className="eyebrow">Track</div>
         <h1 className="page-title">Game Pad</h1>
         <p className="page-intro">Train your recall through play. Every game draws on concepts you're actually learning.</p>
+        <div className="rally-best-strip">
+          <div><strong>{arcade.rallyBest.level}</strong><span>best Rally level</span></div>
+          <div><strong>{arcade.rallyBest.combo}</strong><span>best knowledge combo</span></div>
+          <div><strong>{arcade.rallyBest.accuracy}%</strong><span>average Rally accuracy</span></div>
+          <div><strong>{arcade.rallyBest.runs}</strong><span>Rally runs</span></div>
+        </div>
 
         <div className="gamepad-grid">
           <article className={`card game-card${dueCount > 0 ? " available" : " locked"}`} onClick={dueCount > 0 ? startQuiz : undefined}>
@@ -181,7 +187,7 @@ export function GamePadView() {
               <div className="game-icon">🏓</div>
               <div>
                 <h3>Recall Rally</h3>
-                <p>{rally.unlocked ? "Playable now. Beat Alexandria at Pong, then retrieve knowledge to earn each point." : rally.requirement}</p>
+                <p>{rally.unlocked ? "Classic Pong with Alexandria knowledge controlling the score. Choose one book or the whole Library, climb levels, build combos and surface weak concepts." : rally.requirement}</p>
                 {!rally.unlocked && <span className="coming-soon-badge">{Math.min(rally.current, rally.target)} / {rally.target} knowledge items</span>}
               </div>
               {rally.unlocked && <button className="small-btn primary" onClick={() => setMode("rally")}>Play →</button>}
