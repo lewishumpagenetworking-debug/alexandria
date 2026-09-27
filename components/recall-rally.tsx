@@ -124,6 +124,7 @@ export function RecallRally({ onExit }: { onExit: () => void }) {
     usedIdsRef.current.add(card.id);
     const built = buildRallyChallenge(card, level, challengeIndexRef.current++);
     setChallenge(built);
+    if (powerUp === "slow") setPowerUp(null);
     setAnswer("");
     setRevealed(false);
     setPhase("challenge");
