@@ -108,7 +108,11 @@ function deterministicJitter(id: string, salt: number): number {
   return ((hash >>> 0) % 1000) / 1000;
 }
 
-function pickEncounterSource(excludeIds: Set<string>, seedIndex: number): SourceRef {
+function pickEncounterSource(excludeIds: Set<string>, seedIndex: number, recentLabels: string[] = []): SourceRef {
+  const primaryBook = loadBooks().find((book) => !book.completed) ?? loadBooks()[0];
+  const lastLabel = recentLabels[recentLabels.length - 1];
+  const recentSet = new Set(recentLabels.slice(-4));
+
   const cards = listCards()
     .filter((card) => !excludeIds.has(card.refId))
     .map((card) => {
@@ -118,7 +122,10 @@ function pickEncounterSource(excludeIds: Set<string>, seedIndex: number): Source
       const dueBonus = card.dueAt <= todayISO() ? 35 : 0;
       const noveltyBonus = (card.engagementCount ?? 0) === 0 ? 45 : 0;
       const repeatPenalty = Math.min(35, (card.engagementCount ?? 0) * 6);
-      const score = freshness + dueBonus + noveltyBonus + (card.priorityWeight ?? 0) - repeatPenalty + deterministicJitter(card.id, seedIndex) * 18;
+      const primaryBookBonus = primaryBook && card.label === primaryBook.title ? 18 : 0;
+      const sameBookPenalty = card.label === lastLabel ? 26 : recentSet.has(card.label) ? 10 : 0;
+      const diversityBonus = recentLabels.length > 0 && !recentSet.has(card.label) ? 14 : 0;
+      const score = freshness + dueBonus + noveltyBonus + (card.priorityWeight ?? 0) + primaryBookBonus + diversityBonus - repeatPenalty - sameBookPenalty + deterministicJitter(card.id, seedIndex) * 18;
       return { card, score };
     })
     .sort((a, b) => b.score - a.score);
@@ -179,21 +186,36 @@ function registerAndReturn(ref: SourceRef): SourceRef {
   return ref;
 }
 
+function latestKnowledgeThreadSource(builtSoFar: PathStep[]): SourceRef | undefined {
+  return [...builtSoFar].reverse().find((step) =>
+    step.sourceRef &&
+    ["encounter", "recall", "interrogate", "reduce", "rebuild", "connect", "articulate", "apply"].includes(step.stage)
+  )?.sourceRef;
+}
+
 function resolveSourceRef(stage: LoopStage, builtSoFar: PathStep[], seedIndex: number): SourceRef | undefined {
+  const recentLabels = builtSoFar.filter((step) => step.sourceRef).map((step) => step.sourceRef!.label);
+
   if (stage === "encounter") {
     const excludeIds = new Set(builtSoFar.filter((step) => step.sourceRef?.type !== "principle").map((step) => step.sourceRef!.id));
-    return registerAndReturn(pickEncounterSource(excludeIds, seedIndex));
+    return registerAndReturn(pickEncounterSource(excludeIds, seedIndex, recentLabels));
   }
   if (stage === "interrogate") {
+    const previousEncounter = [...builtSoFar].reverse().find((step) => step.stage === "encounter" && step.sourceRef)?.sourceRef;
+    if (previousEncounter) return registerAndReturn(previousEncounter);
     const excludeIds = new Set(builtSoFar.filter((step) => step.sourceRef).map((step) => step.sourceRef!.id));
-    return registerAndReturn(pickEncounterSource(excludeIds, seedIndex + 17));
+    return registerAndReturn(pickEncounterSource(excludeIds, seedIndex + 17, recentLabels));
+  }
+  if (["reduce", "rebuild", "connect", "articulate", "apply"].includes(stage)) {
+    const thread = latestKnowledgeThreadSource(builtSoFar);
+    if (thread) return registerAndReturn(thread);
   }
   if (stage === "recall" || stage === "retrieve-again") {
     const excludeIds = new Set(builtSoFar.filter((step) => step.sourceRef).map((step) => step.sourceRef!.id));
     const due = pickDueSource(excludeIds);
     if (due) return due;
     const previous = [...builtSoFar].reverse().find((step) => step.sourceRef && (step.stage === "encounter" || step.stage === "retrieve-again"));
-    return registerAndReturn(previous?.sourceRef ?? pickEncounterSource(new Set(), seedIndex));
+    return registerAndReturn(previous?.sourceRef ?? pickEncounterSource(new Set(), seedIndex, recentLabels));
   }
   if (stage === "observe" || stage === "revise") {
     const due = pickDueSource(new Set(), ["principle"]);
@@ -262,7 +284,7 @@ export function getCurrentStep(): PathStep | null {
   if (current.stage === "interrogate" && !current.sourceRef) {
     const all = getAllSteps();
     const exclude = new Set(all.filter((item) => item.sourceRef).map((item) => item.sourceRef!.id));
-    const migrated = { ...current, sourceRef: registerAndReturn(pickEncounterSource(exclude, all.length + 31)) };
+    const migrated = { ...current, sourceRef: registerAndReturn(pickEncounterSource(exclude, all.length + 31, all.filter((item) => item.sourceRef).map((item) => item.sourceRef!.label))) };
     saveAllSteps(all.map((item) => item.id === current.id ? migrated : item));
     return migrated;
   }
@@ -421,7 +443,7 @@ export function rotateStepSource(stepId: string): PathStep | null {
   if (!step) return null;
   const exclude = new Set(all.filter((item) => item.sourceRef).map((item) => item.sourceRef!.id));
   if (step.sourceRef) exclude.add(step.sourceRef.id);
-  const replacement = registerAndReturn(pickEncounterSource(exclude, all.length + step.order + Date.now() % 997));
+  const replacement = registerAndReturn(pickEncounterSource(exclude, all.length + step.order + Date.now() % 997, all.filter((item) => item.sourceRef).map((item) => item.sourceRef!.label)));
   const updatedStep = { ...step, sourceRef: replacement };
   saveAllSteps(all.map((item) => item.id === stepId ? updatedStep : item));
   return updatedStep;
