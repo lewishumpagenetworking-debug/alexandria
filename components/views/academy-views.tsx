@@ -259,10 +259,10 @@ export function ForumView({ onComplete, studyContext }: { onComplete: (result: F
 
 const RECALL_COPY: Record<RecallStage, { eyebrow: string; title: string; intro: string; prompt: string }> = {
   encounter: { eyebrow: "New material entering the loop", title: "Encounter", intro: "Read once, without trying to hold onto it yet.", prompt: "What is your first reaction? (optional)" },
-  recall: { eyebrow: "Before rereading", title: "Recall", intro: "Retrieve from memory before the source is shown again.", prompt: "What do you remember, in your own words?" },
+  recall: { eyebrow: "Grounded retrieval", title: "Recall", intro: "Keep the source visible. Retrieve its meaning, structure, and significance without relying on vague memory of an earlier screen.", prompt: "Explain the idea in your own words. What is essential, and why does it matter?" },
   observe: { eyebrow: "Feedback from reality", title: "Observe", intro: "A principle only earns its keep once it meets a real decision.", prompt: "What happened when you applied this?" },
   revise: { eyebrow: "Willingness to revise", title: "Revise", intro: "Keep it only if it survives the evidence.", prompt: "Revise the statement if the evidence changes it, or confirm it as-is." },
-  "retrieve-again": { eyebrow: "Spaced retrieval", title: "Retrieve Again", intro: "Does it still hold together without looking?", prompt: "What do you remember, in your own words?" },
+  "retrieve-again": { eyebrow: "Spaced retrieval", title: "Retrieve Again", intro: "Return to the same source and test whether your understanding still holds together.", prompt: "Explain the idea again. What has remained clear, and what now needs qualification?" },
 };
 
 export type RetrievalQuality = "blank" | "partial" | "nailed";
@@ -279,7 +279,6 @@ export function RecallCheckView({ stage, sourceRef, onComplete }: {
 }) {
   const copy = RECALL_COPY[stage];
   const isRetrieval = stage === "recall" || stage === "retrieve-again";
-  const [revealed, setRevealed] = useState(!isRetrieval);
   const [text, setText] = useState(stage === "revise" ? sourceRef?.text ?? "" : "");
 
   function finish(response: string, quality?: RetrievalQuality) {
@@ -287,17 +286,21 @@ export function RecallCheckView({ stage, sourceRef, onComplete }: {
   }
 
   return <section className="view active"><div className="content"><PageHeader eyebrow={copy.eyebrow} title={copy.title} intro={copy.intro} />
-    {(revealed || stage === "encounter" || stage === "observe" || stage === "revise") && sourceRef && <div className="manuscript"><div className="kicker">{sourceRef.label}</div><blockquote>“{sourceRef.text}”</blockquote></div>}
+    {sourceRef && <SourceReference
+      label={sourceRef.label}
+      text={sourceRef.text}
+      note="This is the exact source for the question below. Keep your answer grounded in it."
+    />}
     <article className="card prompt-panel">
       <h2>{copy.prompt}</h2>
-      {isRetrieval && !revealed ? <>
-        <textarea className="answer" value={text} onChange={(event) => setText(event.target.value)} placeholder="Write what you remember before it's shown again…" />
-        <div className="mic-row"><button className="small-btn primary" onClick={() => setRevealed(true)} disabled={!text.trim()}>Reveal & self-rate →</button></div>
-      </> : isRetrieval ? <>
-        <p className="meta">Your recall: “{text}”</p>
-        <div className="constraint-row">{QUALITY_OPTIONS.map(({ label, quality }) => <button key={quality} className="pill" onClick={() => finish(text, quality)}>{label}</button>)}</div>
+      {isRetrieval ? <>
+        <textarea className="answer" value={text} onChange={(event) => setText(event.target.value)} placeholder="Explain the source accurately in your own words…" />
+        <div className="mic-row">
+          <span className="voice-note">After answering, rate the quality of your understanding.</span>
+          <div className="constraint-row">{QUALITY_OPTIONS.map(({ label, quality }) => <button key={quality} className="pill" disabled={!text.trim()} onClick={() => finish(text, quality)}>{label}</button>)}</div>
+        </div>
       </> : <>
-        <textarea className="answer" value={text} onChange={(event) => setText(event.target.value)} placeholder={stage === "encounter" ? "Optional — a first reaction is enough." : "Write your answer…"} />
+        <textarea className="answer" value={text} onChange={(event) => setText(event.target.value)} placeholder={stage === "encounter" ? "Optional — a first reaction is enough." : "Write your answer against the source above…"} />
         <div className="mic-row"><button className="small-btn primary" onClick={() => finish(text.trim() || "(no reaction recorded)")} disabled={stage !== "encounter" && !text.trim()}>Continue to the next step →</button></div>
       </>}
     </article>
