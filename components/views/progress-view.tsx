@@ -8,6 +8,7 @@ import { getTotalPoints, getPointsToday, listPointEvents, type PointEvent } from
 import { listHighlights, listPrinciples } from "@/lib/library-notes-store";
 import { listCards } from "@/lib/retrieval-store";
 import { listApplications } from "@/lib/apply-store";
+import { getHabitStats } from "@/lib/habit-store";
 
 const LEVELS = [
   { name: "Initiate", min: 0 },
@@ -58,6 +59,7 @@ export function ProgressView() {
   const [principles, setPrinciples] = useState(listPrinciples());
   const [cards, setCards] = useState(listCards());
   const [applications, setApplications] = useState(listApplications());
+  const [habitStats, setHabitStats] = useState(getHabitStats());
 
   function sync() {
     setXp(getTotalPoints());
@@ -71,6 +73,7 @@ export function ProgressView() {
     setPrinciples(listPrinciples());
     setCards(listCards());
     setApplications(listApplications());
+    setHabitStats(getHabitStats());
   }
 
   useEffect(() => {
@@ -115,6 +118,17 @@ export function ProgressView() {
 
         <div className="progress-grid">
           <div className="stack">
+            <article className="card">
+              <div className="kicker">Reading habit · reclaimed attention</div>
+              <div className="stat-row compact">
+                <div className="stat"><b>{habitStats.replacements}</b><span>scroll impulses redirected</span></div>
+                <div className="stat"><b>{habitStats.minutes}</b><span>minutes reclaimed</span></div>
+                <div className="stat"><b>{habitStats.readingChoiceDays}</b><span>reading-choice days</span></div>
+                <div className="stat"><b>{habitStats.replacementsToday}</b><span>redirects today</span></div>
+              </div>
+              <p className="meta top-gap">This is intentional self-tracking. Alexandria does not inspect or monitor other apps.</p>
+            </article>
+
             <article className="card">
               <div className="kicker">Knowledge library</div>
               <div className="stat-row compact">
