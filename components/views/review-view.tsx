@@ -18,10 +18,10 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
   const [totalDue, setTotalDue] = useState(0);
 
   useEffect(() => {
-    const due = getDueRetrievals(20);
-    setQueue(due);
-    setTotalDue(getDueCount());
-    setPhase(due.length > 0 ? "recall" : "done");
+    const dueHighlights = getDueRetrievals(100).filter((item) => item.refType === "highlight").slice(0, 20);
+    setQueue(dueHighlights);
+    setTotalDue(dueHighlights.length);
+    setPhase(dueHighlights.length > 0 ? "recall" : "done");
   }, []);
 
   function score(quality: RetrievalQuality) {
@@ -57,8 +57,8 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
           <article className="card review-empty">
             <p className="review-empty-icon">✓</p>
             <h2>Nothing due for review</h2>
-            <p>Your next review will be scheduled automatically based on how well you recalled each concept. Check back tomorrow.</p>
-            <p className="meta">Due count resets at midnight. Add more books, highlights, or captures to grow your review queue.</p>
+            <p>Your next quote review will be scheduled automatically based on how closely your interpretation matched the stored diagnosis.</p>
+            <p className="meta">Review is quote-first. Add more book highlights to grow this queue; principles remain available elsewhere in Alexandria.</p>
             <button className="small-btn primary" onClick={() => navigate("library")}>Add a book</button>
           </article>
         </div>
