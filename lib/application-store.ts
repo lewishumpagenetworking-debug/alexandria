@@ -4,6 +4,11 @@ export type StoredBook = {
   author: string;
   currentPage: number;
   totalPages: number;
+  progressMode?: "pages" | "percentage";
+  currentPercent?: number;
+  voiceTotalMinutes?: number;
+  voiceReferenceWpm?: number;
+  voiceWpm?: number;
   completed: boolean;
   readingFinishedAt?: string;
   archivedAt?: string;
@@ -13,6 +18,8 @@ export type StoredBook = {
   lastRead: string;
 };
 
+export type ReadingMethod = "reading" | "listening" | "reading-listening";
+
 export type ReadingLog = {
   id: string;
   bookId: string;
@@ -20,6 +27,18 @@ export type ReadingLog = {
   pages: number;
   minutes: number;
   date: string;
+  method?: ReadingMethod;
+  format?: "physical" | "kindle" | "pdf" | "audiobook";
+  progressPercent?: number;
+  fromPercent?: number;
+  toPercent?: number;
+  voiceWpm?: number;
+  estimatedMinutes?: number;
+  audioSpeed?: number;
+  audioMinutes?: number;
+  listeningContext?: string;
+  comfortableSpeed?: number;
+  trainingSpeed?: number;
   /** ISO timestamp, added alongside the display-formatted `date` so staleness can be computed reliably. */
   createdAt?: string;
 };
@@ -40,8 +59,8 @@ export const saveBooks = (books: StoredBook[]) => {
   const previous = read<StoredBook[]>(BOOKS, seedBooks);
   const next = books.map(book => {
     const prior = previous.find(item => item.id === book.id);
-    const finished = book.totalPages > 1 && book.currentPage >= book.totalPages;
-    return { ...book, archivedAt: prior ? prior.archivedAt : book.archivedAt, deletedAt: prior ? prior.deletedAt : book.deletedAt, completed: finished, readingFinishedAt: book.readingFinishedAt ?? prior?.readingFinishedAt ?? (finished && prior && prior.currentPage < prior.totalPages ? new Date().toISOString() : undefined) };
+    const finished = book.progressMode === "percentage" ? (book.currentPercent ?? 0) >= 100 : book.totalPages > 1 && book.currentPage >= book.totalPages;
+    return { ...book, archivedAt: prior ? prior.archivedAt : book.archivedAt, deletedAt: prior ? prior.deletedAt : book.deletedAt, completed: finished, readingFinishedAt: book.readingFinishedAt ?? prior?.readingFinishedAt ?? (finished && prior && !prior.completed ? new Date().toISOString() : undefined) };
   });
   // Older views save their visible shelf. Keep hidden books and their source IDs intact.
   const hidden = previous.filter(book => (book.archivedAt || book.deletedAt) && !next.some(item => item.id === book.id));
@@ -74,9 +93,9 @@ export function updateBookDetails(id: string, input: { title: string; author: st
   if (!input.title.trim()) throw new Error("Enter a book title.");
   const totalPages = input.totalPages ?? book.totalPages;
   if (input.totalPages !== undefined && (!Number.isInteger(input.totalPages) || input.totalPages < 2 || (input.totalPages < book.currentPage || (!book.completed && input.totalPages === book.currentPage)))) throw new Error("Total pages must be a whole number at least as large as the current page.");
-  const plans = read<{ bookId: string; totalPages: number }[]>("alexandria-reading-commitments-v1", []);
+  const plans = read<{ bookId: string; totalPages: number; unit?: "percentage"; pageTotal?: number }[]>("alexandria-reading-commitments-v1", []);
   const plan = plans.find(item => item.bookId === id);
-  if (plan && totalPages !== plan.totalPages) throw new Error("The total pages are fixed by this book's seven-day commitment.");
+  if (plan && (plan.unit !== "percentage" || plan.pageTotal) && totalPages !== (plan.pageTotal ?? plan.totalPages)) throw new Error("The total pages are fixed by this book's seven-day commitment.");
   saveBooks(books.map(item => item.id === id ? { ...item, title: input.title.trim(), author: input.author.trim() || "Unknown author", totalPages } : item));
   saveLogs(loadLogs().map(log => log.bookId === id ? { ...log, bookTitle: input.title.trim() } : log));
   window.dispatchEvent(new Event("alexandria:data"));

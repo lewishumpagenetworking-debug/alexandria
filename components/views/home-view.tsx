@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { progressLabel } from "@/lib/reading-execution";
 import { loadBooks, loadLogs } from "@/lib/application-store";
 import { listCaptures } from "@/lib/capture-store";
 import { getCurrentStep, getStats, STAGE_LABELS } from "@/lib/path-store";
@@ -10,6 +11,7 @@ import { listApplications } from "@/lib/apply-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 import { ReadInsteadCard } from "@/components/read-instead-card";
 import { WeeklyReading } from "@/components/weekly-reading";
+import { DailyBookWorkflow } from "@/components/daily-book-workflow";
 import { BookTallyWorkspace } from "@/components/book-tally-workspace";
 
 const LEVELS = [
@@ -97,7 +99,7 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
   const today = todayISO();
   const logsToday = logs.filter((l) => l.createdAt?.startsWith(today) || l.date === new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date()));
   const capturesToday = captures.filter((c) => c.createdAt?.startsWith(today));
-  const appsToday = applications.filter((a) => a.createdAt.startsWith(today));
+  const appsToday = applications.filter((a) => a.status !== "planned" && (a.attemptedAt?.startsWith(today) || a.createdAt.startsWith(today)));
   const reviewedToday = history.filter((e) => e.createdAt.startsWith(today) && (e.category === "recall-check" || e.category === "interrogation" || e.category === "first-principles" || e.category === "agora" || e.category === "forum")).length > 0;
   const connectedToday = false; // Knowledge Map connections not yet tracked
 
@@ -158,7 +160,7 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
       return {
         icon: "📖",
         title: `Continue ${currentBook.title}`,
-        context: `${currentBook.author} · page ${currentBook.currentPage} of ${currentBook.totalPages}`,
+        context: `${currentBook.author} · ${progressLabel(currentBook)}`,
         why: "The more you read with a note-taking habit, the more your Review queue fills with material worth remembering. Acquisition is the top of the funnel.",
         space: "library",
         cta: "Log a reading session",
@@ -182,13 +184,14 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
         <div className="home-greeting-text">
           <span className="eyebrow">{greeting()}</span>
           <h1>Here is what matters today.</h1>
-          <p className="home-sub">Protocol: {protocolDoneCount} of 6 complete · Level {level.name} · {xpToday > 0 ? `+${xpToday} XP today` : "no XP yet today"}</p>
+          <p className="home-sub">Reading workflow below · Level {level.name} · {xpToday > 0 ? `+${xpToday} XP today` : "no XP yet today"}</p>
         </div>
       </div>
 
       <div className="content">
         <div className="home-grid">
           <div className="home-main">
+            <DailyBookWorkflow />
             <WeeklyReading />
             <BookTallyWorkspace />
             <ReadInsteadCard />
@@ -206,6 +209,7 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
               <button className="na-cta" onClick={(e) => { e.stopPropagation(); navigate(nextAction.space); }}>{nextAction.cta} →</button>
             </article>
 
+            <div className="kicker top-gap">Other practice</div>
             <div className="protocol-grid">
               {protocol.map((item) => (
                 <button key={item.id} className={`protocol-item${item.done ? " done" : ""}`} onClick={() => navigate(item.space)} title={item.description}>
@@ -242,7 +246,7 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
             </article>
 
             <article className="card">
-              <div className="kicker">Daily protocol</div>
+              <div className="kicker">Other practice · {protocolDoneCount} of 6</div>
               <div className="list">
                 {protocol.map((item) => (
                   <div key={item.id} className="list-item protocol-row">
