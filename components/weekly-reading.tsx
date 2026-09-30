@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { loadBooks, loadLogs, saveBooks } from "@/lib/application-store";
-import { executionStatus, listCommitments, startCommitment, londonDay, shiftDay } from "@/lib/reading-execution";
+import { dailyQuota, logCredit, progressLabel, executionStatus, listCommitments, startCommitment, londonDay, shiftDay } from "@/lib/reading-execution";
 import { BookMetaPage } from "@/components/book-meta-page";
 
 export function WeeklyReading() {
@@ -18,8 +18,10 @@ export function WeeklyReading() {
     const timer = window.setInterval(sync, 60000);
     return () => { clearInterval(timer); window.removeEventListener("alexandria:data", sync); window.removeEventListener("storage", sync); };
   }, []);
-  const active = plans.find(plan => { const book = books.find(b => b.id === plan.bookId); return book && book.currentPage < plan.totalPages; });
+  const active = plans.find(plan => { const book = books.find(b => b.id === plan.bookId); return book && !book.completed; });
   const book = books.find(b => b.id === active?.bookId);
+  const unit = active?.unit === "percentage" ? "percentage points" : "pages";
+  const fmt = (value: number) => Number(value.toFixed(2));
   const status = active && book ? executionStatus(active, book, logs) : null;
   const candidates = books.filter(b => !b.completed && !b.archivedAt && !b.deletedAt && !plans.some(p => p.bookId === b.id));
   const selectedId = candidates.some(book => book.id === bookId) ? bookId : candidates[0]?.id || "";
@@ -37,19 +39,19 @@ export function WeeklyReading() {
     {active && book && status ? <>
       <h3 className="top-gap">{book.title}{book.deletedAt ? " · In Trash" : book.archivedAt ? " · Archived" : ""}</h3>
       <div className="reading-tally-stats top-gap">
-        <div><strong>{Number((active.totalPages / 7).toFixed(2))}</strong><span>pages / day ({active.totalPages} ÷ 7)</span></div>
-        <div><strong>{status.pagesToday} / {status.quota}</strong><span>today’s recorded pages</span></div>
-        <div><strong>{status.pageTarget}</strong><span>reach this page · day {status.day} / 7</span></div>
-        <div><strong>{status.remainingToday}</strong><span>pages still required today</span></div>
+        <div><strong>{Number((active.totalPages / 7).toFixed(2))}</strong><span>{unit} / day ({active.totalPages} ÷ 7)</span></div>
+        <div><strong>{fmt(status.pagesToday)} / {fmt(status.quota)}</strong><span>today’s recorded {unit}</span></div>
+        <div><strong>{fmt(status.pageTarget)}{active.unit === "percentage" ? "%" : ""}</strong><span>cumulative target · day {status.day} / 7</span></div>
+        <div><strong>{fmt(status.remainingToday)}</strong><span>{unit} still required today</span></div>
       </div>
-      <p className={status.overdue || status.behind ? "saved-note top-gap" : "meta top-gap"}>{status.overdue ? "Deadline missed. Finish the book; the deadline remains recorded." : status.behind ? `${status.behind} pages behind the schedule entering today. Catch up and meet today's quota.` : status.remainingToday === 0 ? "Today's quota met. Keep the seven-day commitment." : "Today's quota is outstanding."} Deadline: {status.deadline} (London).</p>
+      <p className={status.overdue || status.behind ? "saved-note top-gap" : "meta top-gap"}>{status.overdue ? "Deadline missed. Finish the book; the deadline remains recorded." : status.behind ? `${fmt(status.behind)} ${unit} behind the schedule entering today. Catch up and meet today's quota.` : status.remainingToday === 0 ? "Today's quota met. Keep the seven-day commitment." : "Today's quota is outstanding."} Deadline: {status.deadline} (London).</p>
       {(book.archivedAt || book.deletedAt) && <p className="meta">Restore this book from Archive or Trash in the reading tally to resume logging. This commitment retains its deadline.</p>}
-      <p className="meta">Whole-page targets distribute rounding across seven days and total exactly {active.totalPages} pages. Reading another book does not satisfy this book’s quota.</p>
+      <p className="meta">{active.unit === "percentage" ? "Percentage targets distribute rounding across seven days and total exactly 100 percentage points." : `Whole-page targets distribute rounding across seven days and total exactly ${active.totalPages} pages.`} Reading another book does not satisfy this book’s quota.</p>
       <table className="reading-week-table"><caption>Seven-day reading record</caption><thead><tr><th>Date</th><th>Quota</th><th>Recorded</th><th>Status</th></tr></thead><tbody>{Array.from({ length: 7 }, (_, index) => {
         const date = shiftDay(active.startDate, index);
-        const quota = Math.ceil(active.totalPages * (index + 1) / 7) - Math.ceil(active.totalPages * index / 7);
-        const actual = logs.filter(log => log.bookId === book.id && log.createdAt && londonDay(new Date(log.createdAt)) === date).reduce((sum, log) => sum + log.pages, 0);
-        return <tr key={date}><td>{date}</td><td>{quota}</td><td>{actual}</td><td>{date > londonDay() ? "Upcoming" : actual >= quota ? "Met" : date < londonDay() ? "Missed" : "Outstanding"}</td></tr>;
+        const quota = dailyQuota(active, index + 1);
+        const actual = logs.filter(log => log.bookId === book.id && log.createdAt && londonDay(new Date(log.createdAt)) === date).reduce((sum, log) => sum + logCredit(active, log), 0);
+        return <tr key={date}><td>{date}</td><td>{fmt(quota)}</td><td>{fmt(actual)}</td><td>{date > londonDay() ? "Upcoming" : actual + 1e-7 >= quota ? "Met" : date < londonDay() ? "Missed" : "Outstanding"}</td></tr>;
       })}</tbody></table>
       <button className="small-btn top-gap" onClick={() => setMetaId(book.id)}>Open book meta page →</button>
     </> : <form className="reading-tally-form top-gap" onSubmit={event => {
@@ -65,11 +67,11 @@ export function WeeklyReading() {
       <p className="meta">{candidates.length ? "The deadline starts today. Total pages and start date are fixed for this commitment." : "Use Start Book in the reading tally below to begin."}</p>
     </form>}
     {message && <p role="status" className="saved-note">{message}</p>}
-    {plans.length > 0 && <details className="top-gap"><summary>Commitment history & book meta pages</summary><div className="list">{plans.map(plan => { const b = books.find(item => item.id === plan.bookId); if (!b) return null; const s = executionStatus(plan, b, logs);  return <div className="list-item" key={plan.bookId}><strong>{b.title}</strong><span>{plan.startDate} → {s.deadline} · {b.currentPage}/{plan.totalPages} pages · {s.finished ? b.readingFinishedAt ? londonDay(new Date(b.readingFinishedAt)) <= s.deadline ? "Finished on time" : "Finished late" : "Reading finished; completion timing unverified" : s.overdue ? "Deadline missed" : "In progress"}</span><button className="small-btn" onClick={() => setMetaId(b.id)}>Book meta page</button><details><summary>Daily evidence</summary>{Array.from({ length: 7 }, (_, index) => {
+    {plans.length > 0 && <details className="top-gap"><summary>Commitment history & book meta pages</summary><div className="list">{plans.map(plan => { const b = books.find(item => item.id === plan.bookId); if (!b) return null; const s = executionStatus(plan, b, logs);  return <div className="list-item" key={plan.bookId}><strong>{b.title}</strong><span>{plan.startDate} → {s.deadline} · {progressLabel(b)} · {s.finished ? b.readingFinishedAt ? londonDay(new Date(b.readingFinishedAt)) <= s.deadline ? "Finished on time" : "Finished late" : "Reading finished; completion timing unverified" : s.overdue ? "Deadline missed" : "In progress"}</span><button className="small-btn" onClick={() => setMetaId(b.id)}>Book meta page</button><details><summary>Daily evidence</summary>{Array.from({ length: 7 }, (_, index) => {
           const date = shiftDay(plan.startDate, index);
-          const quota = Math.ceil(plan.totalPages * (index + 1) / 7) - Math.ceil(plan.totalPages * index / 7);
-          const actual = logs.filter(log => log.bookId === b.id && log.createdAt && londonDay(new Date(log.createdAt)) === date).reduce((sum, log) => sum + log.pages, 0);
-          return <p className="meta" key={date}>{date}: {actual} / {quota} pages · {date > today ? "Upcoming" : actual >= quota ? "Met" : date < today ? "Missed" : "Outstanding"}</p>;
+          const quota = dailyQuota(plan, index + 1);
+          const actual = logs.filter(log => log.bookId === b.id && log.createdAt && londonDay(new Date(log.createdAt)) === date).reduce((sum, log) => sum + logCredit(plan, log), 0);
+          return <p className="meta" key={date}>{date}: {fmt(actual)} / {fmt(quota)} {plan.unit === "percentage" ? "percentage points" : "pages"} · {date > today ? "Upcoming" : actual + 1e-7 >= quota ? "Met" : date < today ? "Missed" : "Outstanding"}</p>;
         })}</details></div>; })}</div></details>}
     {metaBook && <div className="top-gap"><button className="action-link" onClick={() => setMetaId("")}>Close meta page</button><BookMetaPage key={metaBook.id} book={metaBook} /></div>}
   </article>;

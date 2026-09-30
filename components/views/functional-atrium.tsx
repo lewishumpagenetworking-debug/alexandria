@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { listCaptures } from "@/lib/capture-store";
+import { bookPercent, progressLabel } from "@/lib/reading-execution";
 import { loadBooks, type StoredBook } from "@/lib/application-store";
 import { getGrowthSummary, type GrowthSummary } from "@/lib/growth-store";
 import type { CaptureDraft } from "@/models/domain";
@@ -202,10 +203,10 @@ export function FunctionalAtriumView({ navigate }: { navigate: (space: Alexandri
                   <div className="book-cover">{currentBook.title.toUpperCase()}</div>
                   <div>
                     <p className="meta">{currentBook.author}</p>
-                    <p>{currentBook.currentPage} of {currentBook.totalPages} pages. Last read {currentBook.lastRead}.</p>
-                    <div className="progress"><span style={{ width: `${Math.round(currentBook.currentPage / currentBook.totalPages * 100)}%` }} /></div>
+                    <p>{progressLabel(currentBook)}. Last read {currentBook.lastRead}.</p>
+                    <div className="progress"><span style={{ width: `${Number(bookPercent(currentBook).toFixed(2))}%` }} /></div>
                     <div className="meta">{currentBook.highlights.length} highlights · {currentBook.principles} principles</div>
-                    <button className="action-link" onClick={() => navigate("ledger")}>Continue at page {Math.min(currentBook.currentPage + 1, currentBook.totalPages)} →</button>
+                    <button className="action-link" onClick={() => navigate("ledger")}>Continue reading →</button>
                   </div>
                 </div>
               ) : <p className="meta">The Reading Ledger is empty. Add a book to begin feeding Alexandria.</p>}

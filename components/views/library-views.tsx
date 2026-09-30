@@ -14,7 +14,7 @@ import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 import { AgoraView, FirstPrinciplesView, ForumView, InterrogationView, type BookStudyContext } from "@/components/views/academy-views";
 import { PageHeader, Rule } from "@/components/page-header";
 import { BookTallyWorkspace } from "@/components/book-tally-workspace";
-import { validateReading } from "@/lib/reading-execution";
+import { bookPercent, progressLabel, validateReading } from "@/lib/reading-execution";
 import { ImportNotesWorkspace } from "@/components/import-notes-workspace";
 
 const maturity = ["Collected", "Understood", "Interrogated", "Reduced", "Rebuilt", "Applied", "Tested", "Integrated"];
@@ -127,7 +127,7 @@ export function LibraryView() {
 
     return <section className="view active"><div className="content">
       <button className="action-link back" onClick={() => setSelected(null)}>← Return to the Library</button>
-      <div className="source-hero"><div className="folio-cover">{selected.title}</div><div><div className="eyebrow">Source · Book</div><h1 className="page-title">{selected.title}</h1><p className="page-intro">{selected.author} · {selected.totalPages > 1 ? `${selected.currentPage} of ${selected.totalPages} pages` : "Page count not set yet"} · {bookHighlights.length} highlights · {bookPrinciples.length} principles</p><div className="progress"><span style={{ width: `${Math.round(selected.currentPage / selected.totalPages * 100)}%` }} /></div></div></div>
+      <div className="source-hero"><div className="folio-cover">{selected.title}</div><div><div className="eyebrow">Source · Book</div><h1 className="page-title">{selected.title}</h1><p className="page-intro">{selected.author} · {progressLabel(selected)} · {bookHighlights.length} highlights · {bookPrinciples.length} principles</p><div className="progress"><span style={{ width: `${Number(bookPercent(selected).toFixed(2))}%` }} /></div></div></div>
       <BookTallyWorkspace key={selected.id} initialBookId={selected.id} />
       <div className="button-row top-gap">
         <button className="small-btn primary" disabled={!canStudy} onClick={startStudy}>▶ Dissect a quote / principle</button>
@@ -145,7 +145,7 @@ export function LibraryView() {
 
   return <section className="view active"><div className="content"><PageHeader eyebrow="The external memory" title="The Library" intro="Sources are beginnings, not trophies. Follow an idea from encounter through challenge, application, and revision." />
     <div className="section-tools"><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search books, authors, principles…" aria-label="Search library" /><button className="small-btn primary" onClick={() => setManageBooks("new")}>＋ Start Book</button><button className="small-btn" onClick={() => setManageBooks("manage")}>Manage books</button><span className="result-count">{shown.length} sources found</span></div>
-    <div className="source-grid library-shelves">{shown.map((book, index) => <button className="book-card" onClick={() => setSelected(book)} key={book.id}><div className={`folio-cover tone-${index % 4}`}>{book.title}</div><div><span className="type">Book · {book.author}</span><h3>{book.title}</h3><p>{book.totalPages > 1 ? `${book.currentPage} / ${book.totalPages} pages` : "Ready to start reading"} · {getHighlightsForSource(book.id).length} highlights · {getPrinciplesForSource(book.id).length} principles</p><div className="progress"><span style={{ width: `${Math.round(book.currentPage / book.totalPages * 100)}%` }} /></div></div></button>)}</div>
+    <div className="source-grid library-shelves">{shown.map((book, index) => <button className="book-card" onClick={() => setSelected(book)} key={book.id}><div className={`folio-cover tone-${index % 4}`}>{book.title}</div><div><span className="type">Book · {book.author}</span><h3>{book.title}</h3><p>{progressLabel(book)} · {getHighlightsForSource(book.id).length} highlights · {getPrinciplesForSource(book.id).length} principles</p><div className="progress"><span style={{ width: `${Number(bookPercent(book).toFixed(2))}%` }} /></div></div></button>)}</div>
   </div></section>;
 }
 
@@ -167,10 +167,11 @@ export function HallsView() {
 }
 
 export function LedgerView() {
+  const [trackingBook, setTrackingBook] = useState<string | null>(null);
   const [books, setBooks] = useState(seedBooks);
   const [logs, setLogs] = useState<ReadingLog[]>([]);
   const [modal, setModal] = useState<"book" | "session" | "highlight" | null>(null);
-  const [selectedId, setSelectedId] = useState(seedBooks[0].id);
+  const [selectedId, setSelectedId] = useState(seedBooks[0]?.id ?? "");
   const dialog = useRef<HTMLDialogElement>(null);
   const [form, setForm] = useState({ title: "", author: "", page: "", total: "", pages: "", minutes: "", highlight: "" });
   useEffect(() => { setBooks(loadBooks()); setLogs(loadLogs()); }, []);
@@ -264,13 +265,14 @@ export function LedgerView() {
     }
     setForm({ title: "", author: "", page: "", total: "", pages: "", minutes: "", highlight: "" }); setModal(null);
   }
+  if (trackingBook !== null) return <section className="view active"><div className="content"><BookTallyWorkspace initialBookId={trackingBook} onBack={() => { setTrackingBook(null); setBooks(loadBooks()); setLogs(loadLogs()); }} /></div></section>;
   const pagesRead = books.reduce((sum, book) => sum + book.currentPage, 0);
   const highlights = books.reduce((sum, book) => sum + book.highlights.length, 0);
   return <section className="view active"><div className="content"><PageHeader eyebrow="Reading as acquisition" title="Reading Ledger" intro="Measure what reading produces: remembered explanations, challenged ideas, tested principles, and revised models." />
-    <div className="ledger-actions"><button className="small-btn primary" onClick={() => setModal("book")}>＋ Add a book</button><button className="small-btn" onClick={() => setModal("session")}>Log reading session</button><button className="small-btn" onClick={() => setModal("highlight")}>Add highlight</button><button className="small-btn" onClick={startNewBookUpload}>⇪ Upload a book's notes</button></div>
+    <div className="ledger-actions"><button className="small-btn primary" onClick={() => setModal("book")}>＋ Add a book</button><button className="small-btn" onClick={() => setTrackingBook(selectedId || books.find(b => !b.completed)?.id || "")}>Log reading session</button><button className="small-btn" onClick={() => setModal("highlight")}>Add highlight</button><button className="small-btn" onClick={startNewBookUpload}>⇪ Upload a book's notes</button></div>
     <article className="card"><div className="kicker">Living ledger</div><div className="stat-row"><div className="stat"><b>{pagesRead}</b><span>pages recorded</span></div><div className="stat"><b>{books.filter((book) => !book.completed).length}</b><span>books active</span></div><div className="stat"><b>{books.filter((book) => book.completed).length}</b><span>completed</span></div><div className="stat"><b>{highlights}</b><span>highlights</span></div></div></article><Rule />
-    <div className="ledger-books">{books.map((book) => <article className="card ledger-book" key={book.id}><div><div className="kicker">{book.completed ? "Completed" : "In progress"}</div><h3>{book.title}</h3><p className="meta">{book.author} · last read {book.lastRead} · {book.highlights.length} highlights · {book.principles} principles</p></div><div className="ledger-progress"><span>{Math.round(book.currentPage / book.totalPages * 100)}%</span><div className="progress"><span style={{ width: `${Math.round(book.currentPage / book.totalPages * 100)}%` }} /></div><small>{book.currentPage} of {book.totalPages} pages</small></div><div className="button-row"><button className="ghost-btn" onClick={() => setNotesBook({ id: book.id, title: book.title, author: book.author })}>Notes</button><button className="ghost-btn" disabled={book.completed} onClick={() => { setSelectedId(book.id); setModal("session"); }}>Log pages</button></div></article>)}</div>
-    <Rule /><h2 className="section-title">Reading history</h2><div className="history">{logs.length ? logs.map((log) => <div key={log.id}><strong>{log.bookTitle}</strong><span>{log.pages} pages · {log.minutes} minutes · {log.date}</span></div>) : <div><strong>No sessions logged on this device yet.</strong><span>Your first session will appear here and survive refresh.</span></div>}</div>
+    <div className="ledger-books">{books.map((book) => <article className="card ledger-book" key={book.id}><div><div className="kicker">{book.completed ? "Completed" : "In progress"}</div><h3>{book.title}</h3><p className="meta">{book.author} · last read {book.lastRead} · {book.highlights.length} highlights · {book.principles} principles</p></div><div className="ledger-progress"><span>{Number(bookPercent(book).toFixed(2))}%</span><div className="progress"><span style={{ width: `${Number(bookPercent(book).toFixed(2))}%` }} /></div><small>{progressLabel(book)}</small></div><div className="button-row"><button className="ghost-btn" onClick={() => setNotesBook({ id: book.id, title: book.title, author: book.author })}>Notes</button><button className="ghost-btn" disabled={book.completed} onClick={() => setTrackingBook(book.id)}>Log progress</button></div></article>)}</div>
+    <Rule /><h2 className="section-title">Reading history</h2><div className="history">{logs.length ? logs.map((log) => <div key={log.id}><strong>{log.bookTitle}</strong><span>{log.progressPercent !== undefined ? `+${log.progressPercent} percentage points` : `${log.pages} pages`} · {log.minutes} minutes · {log.date}</span></div>) : <div><strong>No sessions logged on this device yet.</strong><span>Your first session will appear here and survive refresh.</span></div>}</div>
     <dialog ref={dialog} onClose={() => setModal(null)}><form onSubmit={submit}><div className="modal-head"><div><div className="kicker">Reading ledger</div><h2>{modal === "book" ? "Add a book" : modal === "session" ? "Log a session" : "Preserve a highlight"}</h2></div><button type="button" className="close" onClick={() => setModal(null)}>×</button></div><div className="modal-body form-grid">
       {modal !== "book" && <label className="form-span">Book<select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>{books.map((book) => <option value={book.id} key={book.id}>{book.title}</option>)}</select></label>}
       {modal === "book" && <><label>Title<input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label><label>Author<input value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} /></label><label>Current page<input type="number" min="0" value={form.page} onChange={(e) => setForm({ ...form, page: e.target.value })} /></label><label>Total pages<input type="number" min="1" value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value })} /></label></>}

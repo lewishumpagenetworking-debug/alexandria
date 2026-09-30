@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "node tests/reading-execution.cjs"
+    "test": "node tests/reading-execution.cjs && node tests/daily-book-workflow.cjs"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",

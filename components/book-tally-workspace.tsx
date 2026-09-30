@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { createBook, loadBooks, loadLogs, saveBooks, setBookState, updateBookDetails, type StoredBook } from "@/lib/application-store";
-import { executionStatus, listCommitments, startCommitment } from "@/lib/reading-execution";
+import { progressLabel, executionStatus, listCommitments, startCommitment } from "@/lib/reading-execution";
 import { addHighlight, getHighlightsForSource } from "@/lib/library-notes-store";
 import { registerCard } from "@/lib/retrieval-store";
 import { ImportNotesWorkspace } from "@/components/import-notes-workspace";
-import { DailyReadingTally } from "@/components/daily-reading-tally";
+import { DailyBookWorkflow } from "@/components/daily-book-workflow";
 import { BookMetaPage } from "@/components/book-meta-page";
 
 type Shelf = "books" | "archive" | "trash";
@@ -28,8 +28,10 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
   useEffect(() => {
     const sync = () => { setBooks(loadBooks({ includeArchived: true, includeDeleted: true })); setRevision(value => value + 1); };
     sync(); window.addEventListener("alexandria:data", sync); window.addEventListener("storage", sync);
+    const start = () => { setCreating(true); setEditing(false); setSelectedId(""); setForm(blank()); setMessage(""); };
+    window.addEventListener("alexandria:start-book", start);
     const timer = window.setInterval(sync, 60000);
-    return () => { clearInterval(timer); window.removeEventListener("alexandria:data", sync); window.removeEventListener("storage", sync); };
+    return () => { window.removeEventListener("alexandria:start-book", start); clearInterval(timer); window.removeEventListener("alexandria:data", sync); window.removeEventListener("storage", sync); };
   }, []);
   const shown = books.filter(book => shelf === "trash" ? book.deletedAt : shelf === "archive" ? !book.deletedAt && book.archivedAt : !book.deletedAt && !book.archivedAt);
   const selected = shown.find(book => book.id === selectedId);
@@ -60,7 +62,7 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
     setMessage(action === "delete" ? "Moved to Trash. Restore it there to recover its tracking and notes." : action === "archive" ? "Book archived. Its tracking and notes are preserved." : "Book restored to its previous shelf.");
   }
   if (importing && selected) return <ImportNotesWorkspace initialSourceId={selected.id} onBack={() => setImporting(false)} onComplete={() => setImporting(false)} />;
-  return <article className="card book-tally-workspace">
+  return <article className="card book-tally-workspace" id={onBack || initialBookId ? undefined : "reading-books"}>
     {onBack && <button className="action-link back" onClick={onBack}>← Back to Library</button>}
     <div className="card-head"><div><div className="kicker">Reading tally · My books</div><h2>Your books, in their own folders.</h2></div><button className="small-btn primary" onClick={newBook}>＋ Start Book</button></div>
     <p className="meta">Start with a title to create the folder. Add your page count, reading sessions and notes as you read. Import existing notes later if you choose.</p>
@@ -79,37 +81,37 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
     </form>}
     {message && <p className="saved-note top-gap" role="status">{message}</p>}
     {!creating && !selected && <div className="book-folder-grid top-gap">
-      {shown.map(book => <button className="book-folder" key={book.id} onClick={() => openBook(book)}><span className="folder-mark" aria-hidden="true">▤</span><strong>{book.title}</strong><span>{book.author}</span><span>{book.currentPage} / {book.totalPages > 1 ? book.totalPages : "?"} pages · {getHighlightsForSource(book.id).length} notes</span><span>{book.completed ? "Reading completed" : "In progress"}</span></button>)}
+      {shown.map(book => <button className="book-folder" key={book.id} onClick={() => openBook(book)}><span className="folder-mark" aria-hidden="true">▤</span><strong>{book.title}</strong><span>{book.author}</span><span>{progressLabel(book)} · {getHighlightsForSource(book.id).length} notes</span><span>{book.completed ? "Reading completed" : "In progress"}</span></button>)}
       {shown.length === 0 && <p className="meta">{shelf === "books" ? "No books here yet. Choose Start Book and enter a title to create your first tracking folder." : shelf === "archive" ? "Archived books appear here with their history and notes." : "Deleted books appear here. You can restore them without losing their work."}</p>}
     </div>}
     {!creating && selected && <section className="book-folder-detail top-gap" aria-label={`${selected.title} tracking folder`}>
       <button className="action-link" onClick={() => { setSelectedId(""); setEditing(false); setDeleteId(""); setMessage(""); }}>← All book folders</button>
-      <h3 className="top-gap">{selected.title}</h3><p className="meta">{selected.author} · {selected.totalPages > 1 ? `${selected.currentPage} / ${selected.totalPages} pages` : "Page count can be added when you start tracking"}</p>
+      <h3 className="top-gap">{selected.title}</h3><p className="meta">{selected.author} · {selected.progressMode === "percentage" ? progressLabel(selected) : selected.totalPages > 1 ? `${selected.currentPage} / ${selected.totalPages} pages` : "Choose pages or percentage tracking below"}</p>
       <div className="button-row top-gap">
         {!selected.deletedAt && <button className="small-btn" onClick={() => { setEditing(true); setForm({ title: selected.title, author: selected.author, totalPages: selected.totalPages > 1 ? String(selected.totalPages) : "", currentPage: String(selected.currentPage) }); }}>Edit Book</button>}
         {selected.deletedAt ? <button className="small-btn primary" onClick={() => changeState("restore")}>Restore Book</button> : <><button className="small-btn" onClick={() => changeState(selected.archivedAt ? "unarchive" : "archive")}>{selected.archivedAt ? "Unarchive Book" : "Archive Book"}</button><button className="small-btn" onClick={() => setDeleteId(selected.id)}>Delete Book</button></>}
       </div>
       {deleteId === selected.id && <div className="card top-gap" role="alert"><p>Move “{selected.title}” to Trash? Its page history, notes and breakdown will remain recoverable.</p><div className="button-row"><button className="small-btn primary" onClick={() => changeState("delete")}>Move to Trash</button><button className="small-btn" onClick={() => setDeleteId("")}>Keep Book</button></div></div>}
-      <p className="meta top-gap">Daily requirement: {selected.totalPages > 1 ? `${Number((selected.totalPages / 7).toFixed(2))} pages (${selected.totalPages} ÷ 7)` : "Edit Book to set the actual page count"}.</p>
-      {status && <p className="saved-note">Day {status.day} / 7 · reach page {status.pageTarget} · deadline {status.deadline} · {status.finished ? "Reading finished" : status.overdue ? "Deadline missed" : `${status.remainingToday} pages still required today`}</p>}
+      <p className="meta top-gap">Daily requirement: {selected.progressMode === "percentage" ? "14.29 percentage points (100 ÷ 7)" : selected.totalPages > 1 ? `${Number((selected.totalPages / 7).toFixed(2))} pages (${selected.totalPages} ÷ 7)` : "Set up pages or percentage tracking below"}.</p>
+      {status && <p className="saved-note">Day {status.day} / 7 · reach {Number(status.pageTarget.toFixed(2))}{plan?.unit === "percentage" ? "%" : " pages"} · deadline {status.deadline} · {status.finished ? "Reading finished" : status.overdue ? "Deadline missed" : `${Number(status.remainingToday.toFixed(2))} ${plan?.unit === "percentage" ? "percentage points" : "pages"} still required today`}</p>}
       {selected.archivedAt || selected.deletedAt ? <p className="meta">Restore this book to resume logging. Existing commitments keep their original deadline.</p> : <>
         {!plan && !selected.completed && <button className="small-btn primary top-gap" onClick={() => {
-          const unfinished = plans.find(item => { const book = books.find(b => b.id === item.bookId); return book && book.currentPage < item.totalPages; });
+          const unfinished = plans.find(item => { const book = books.find(b => b.id === item.bookId); return book && !book.completed; });
           if (selected.totalPages <= 1) { setMessage("Edit Book to enter the actual total pages before starting."); return; }
           if (unfinished) { setMessage("Finish your existing seven-day commitment first. Restore its book if it is archived or in Trash."); return; }
           try { startCommitment(selected.id, selected.totalPages); setMessage("Seven-day commitment started today."); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not start the commitment."); }
         }}>Begin seven-day commitment →</button>}
-        {selected.totalPages > 1 ? <div className="top-gap"><DailyReadingTally key={selected.id} sourceId={selected.id} /></div> : <p className="meta top-gap">Your folder is ready. Use Edit Book to add the total pages and enable the daily tally.</p>}
-        <form className="form-grid top-gap" onSubmit={event => {
+        <div className="top-gap"><DailyBookWorkflow key={selected.id} sourceId={selected.id} /></div>
+        <details className="top-gap"><summary>Add another quote or note (optional)</summary><form className="form-grid top-gap" onSubmit={event => {
           event.preventDefault(); if (!note.trim()) return;
           const highlight = addHighlight({ sourceId: selected.id, text: note.trim(), location: location.trim() || undefined });
           registerCard("highlight", highlight.id, selected.title, highlight.text);
           saveBooks(loadBooks().map(book => book.id === selected.id ? { ...book, highlights: [...book.highlights, highlight.text] } : book));
           setNote(""); setLocation(""); setMessage("Note saved to this book and available for quote study."); window.dispatchEvent(new Event("alexandria:data"));
-        }}><label className="form-span">Add a quote or note<textarea required value={note} onChange={event => setNote(event.target.value)} /></label><label>Page / chapter <span className="optional">optional</span><input value={location} onChange={event => setLocation(event.target.value)} /></label><div className="form-span"><button className="small-btn" disabled={!note.trim()}>Save Note</button></div></form>
+        }}><label className="form-span">Add a quote or note<textarea required value={note} onChange={event => setNote(event.target.value)} /></label><label>Page / chapter <span className="optional">optional</span><input value={location} onChange={event => setLocation(event.target.value)} /></label><div className="form-span"><button className="small-btn" disabled={!note.trim()}>Save Note</button></div></form></details>
       </>}
       {!selected.deletedAt && !selected.archivedAt && <details className="top-gap"><summary>Import existing notes later (optional)</summary><p className="meta">Your folder and reading tracker work without an import. When you have notes to upload, you can add them to this book here.</p><button className="small-btn" onClick={() => setImporting(true)}>Import notes into this book</button></details>}
-      <details className="top-gap"><summary>Reading history ({logs.filter(log => log.bookId === selected.id).length} sessions)</summary>{logs.filter(log => log.bookId === selected.id).map(log => <p className="meta" key={log.id}>{log.date} · {log.pages} pages · {log.minutes} minutes</p>)}</details>
+      <details className="top-gap"><summary>Reading history ({logs.filter(log => log.bookId === selected.id).length} sessions)</summary>{logs.filter(log => log.bookId === selected.id).map(log => <p className="meta" key={log.id}>{log.date} · {log.progressPercent !== undefined ? `+${log.progressPercent} percentage points (${log.fromPercent}% → ${log.toPercent}%)` : `${log.pages} pages`} · {log.minutes} minutes{log.method ? ` · ${log.method}` : ""}{log.voiceWpm ? ` · ${log.voiceWpm} WPM` : ""}{log.estimatedMinutes !== undefined ? ` · estimated ${Math.ceil(log.estimatedMinutes)} minutes` : ""}{log.audioSpeed ? ` · ${log.audioSpeed}× audio` : ""}</p>)}</details>
       <details className="top-gap"><summary>Saved notes ({notes.length})</summary>{notes.map(item => <div className="note-item" key={item.id}><span className="kicker">{item.location || "Note"}</span><p>{item.text}</p></div>)}</details>
       {!selected.deletedAt && <BookMetaPage key={selected.id} book={selected} />}
     </section>}

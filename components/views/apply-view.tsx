@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { listPrinciples } from "@/lib/library-notes-store";
-import { listApplications, addApplication, updateOutcome, type KnowledgeApplication } from "@/lib/apply-store";
+import { listApplications, addApplication, updateOutcome, markApplicationAttempted, type KnowledgeApplication } from "@/lib/apply-store";
 import { awardPoints, POINTS } from "@/lib/points-store";
 import type { Principle } from "@/models/domain";
 
@@ -150,12 +150,12 @@ export function ApplyView() {
             <div className="empty-state">
               <div className="empty-icon">⚖️</div>
               <h3>No principles yet</h3>
-              <p>Principles are extracted during Learn sessions or imported. Once you have some, you can record where you applied them in the real world.</p>
+              <p>Extract principles in your daily reading workflow or Learn sessions, then plan and record their application in the real world.</p>
             </div>
           ) : (
             <div className="apply-list">
               {principles.map((p) => {
-                const appCount = applications.filter((a) => a.principleId === p.id).length;
+                const appCount = applications.filter((a) => a.principleId === p.id && a.status !== "planned").length;
                 return (
                   <article key={p.id} className="card apply-principle">
                     <p className="principle-statement">{p.statement}</p>
@@ -186,6 +186,8 @@ export function ApplyView() {
                 <article key={app.id} className="card apply-record">
                   <blockquote className="apply-principle-text">{app.principleText}</blockquote>
                   {app.sourceTitle && <p className="meta">Book: {app.sourceTitle} · Outcome review: {app.reviewDate}</p>}
+                  <p className="meta">Status: {app.status || "attempted"}{app.sourceLocation ? ` · ${app.sourceLocation}` : ""}</p>
+                  {app.expectedOutcome && <p className="meta">Expected result: {app.expectedOutcome}</p>}
                   <div className="apply-details">
                     <div><span className="recall-label">Context</span><p>{app.context}</p></div>
                     <div><span className="recall-label">Action</span><p>{app.action}</p></div>
@@ -194,7 +196,7 @@ export function ApplyView() {
                     ) : (
                       <div>
                         <span className="recall-label">Outcome</span>
-                        <OutcomeEditor appId={app.id} onSave={sync} />
+                        {app.status === "planned" ? <button className="small-btn" onClick={() => { markApplicationAttempted(app.id); sync(); }}>Mark action attempted</button> : <OutcomeEditor appId={app.id} onSave={sync} />}
                       </div>
                     )}
                   </div>

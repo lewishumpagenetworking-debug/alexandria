@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { loadBooks, loadLogs, saveBooks, saveLogs, uid } from "@/lib/application-store";
-import { londonDay, validateReading } from "@/lib/reading-execution";
+import { loadBooks, loadLogs, type ReadingMethod } from "@/lib/application-store";
+import { bookPercent, londonDay } from "@/lib/reading-execution";
+import { estimateVoiceMinutes, recordReadingSession } from "@/lib/reading-session-store";
+import { VoiceBookSetup } from "@/components/voice-book-setup";
 import { listHighlights } from "@/lib/library-notes-store";
 import { awardPoints, POINTS } from "@/lib/points-store";
 
@@ -14,10 +16,17 @@ export function DailyReadingTally({ sourceId }: { sourceId?: string } = {}) {
   const [books, setBooks] = useState(() => loadBooks());
   const [logs, setLogs] = useState(() => loadLogs());
   const [bookId, setBookId] = useState(() => loadBooks().find((book) => !book.completed)?.id ?? loadBooks()[0]?.id ?? "");
-  const [mode, setMode] = useState<"pages" | "current">("current");
+  const [mode, setMode] = useState<"pages" | "current" | "percentage">("current");
   const [value, setValue] = useState("");
   const [minutes, setMinutes] = useState("");
   const [message, setMessage] = useState("");
+  const [method, setMethod] = useState<ReadingMethod>("reading");
+  const [format, setFormat] = useState<"physical" | "kindle" | "pdf">("physical");
+  const [voiceWpm, setVoiceWpm] = useState("150");
+  const [audioSpeed, setAudioSpeed] = useState("1");
+  const [listeningContext, setListeningContext] = useState("Focused session");
+  const [comfortableSpeed, setComfortableSpeed] = useState("");
+  const [trainingSpeed, setTrainingSpeed] = useState("");
 
   useEffect(() => {
     const sync = () => {
@@ -31,6 +40,14 @@ export function DailyReadingTally({ sourceId }: { sourceId?: string } = {}) {
   }, []);
 
   const selectedId = sourceId ?? (books.some(book => book.id === bookId) ? bookId : books.find(book => !book.completed)?.id ?? books[0]?.id ?? "");
+  const book = books.find(b => b.id === selectedId);
+  const effectiveMode = book?.progressMode === "percentage" ? "percentage" : mode;
+  const percentageMode = effectiveMode === "percentage";
+  const effectiveWpm = Number(voiceWpm);
+  useEffect(() => { setVoiceWpm(String(book?.voiceWpm ?? 150)); setValue(""); }, [selectedId]);
+  const percentToday = logs.filter(log => log.bookId === selectedId && log.createdAt && londonDay(new Date(log.createdAt)) === londonDay()).reduce((sum, log) => sum + (log.progressPercent ?? (book && book.totalPages > 1 ? log.pages / book.totalPages * 100 : 0)), 0);
+  const dailyMinutes = book ? estimateVoiceMinutes(book, 100 / 7, effectiveWpm) : undefined;
+  const remainingMinutes = book ? estimateVoiceMinutes(book, 100 - bookPercent(book), effectiveWpm) : undefined;
   const scopedLogs = sourceId ? logs.filter(log => log.bookId === sourceId) : logs;
   const today = dayKey(new Date());
   const todaysLogs = scopedLogs.filter((log) => log.createdAt && londonDay(new Date(log.createdAt)) === today);
@@ -47,82 +64,64 @@ export function DailyReadingTally({ sourceId }: { sourceId?: string } = {}) {
   function submit(event: React.FormEvent) {
     event.preventDefault();
     const book = books.find((item) => item.id === selectedId);
-    const numeric = Math.max(0, Number(value) || 0);
-    if (!book || numeric <= 0) return;
-
-    const pagesRead = mode === "current"
-      ? Math.max(0, numeric - book.currentPage)
-      : numeric;
-    const nextPage = mode === "current"
-      ? Math.max(book.currentPage, numeric)
-      : book.currentPage + pagesRead;
-    const error = validateReading(book, nextPage);
-    if (error) { setMessage(error); return; }
-
-    const nextBooks = books.map((item) => item.id === book.id ? {
-      ...item,
-      currentPage: nextPage,
-      totalPages: item.totalPages,
-      completed: item.totalPages > 1 ? nextPage >= item.totalPages : item.completed,
-      lastRead: "Today",
-    } : item);
-
-    const nextLogs = [{
-      id: uid("log"),
-      bookId: book.id,
-      bookTitle: book.title,
-      pages: pagesRead,
-      minutes: Math.max(0, Number(minutes) || 0),
-      date: new Date().toLocaleDateString("en-GB"),
-      createdAt: new Date().toISOString(),
-    }, ...logs];
-
-    saveBooks(nextBooks);
-    saveLogs(nextLogs);
-    awardPoints("reading-session", `Daily tally · ${pagesRead} pages · ${book.title}`, POINTS.readingSession);
-    setBooks(nextBooks);
-    setLogs(nextLogs);
-    setValue("");
-    setMinutes("");
-    setMessage(pagesRead > 0 ? `Recorded ${pagesRead} pages in ${book.title}.` : `Updated ${book.title} to page ${nextPage}.`);
-    window.dispatchEvent(new Event("alexandria:data"));
+    if (!book) return;
+    try {
+      const log = recordReadingSession({ bookId: book.id, mode: effectiveMode, voiceWpm: effectiveWpm, value: value ? Number(value) : undefined, minutes: Number(minutes) || 0, method, format, audioSpeed: Number(audioSpeed), listeningContext, comfortableSpeed: comfortableSpeed ? Number(comfortableSpeed) : undefined, trainingSpeed: trainingSpeed ? Number(trainingSpeed) : undefined });
+      if (log.pages > 0 || (log.progressPercent ?? 0) > 0) awardPoints("reading-session", `Daily tally · ${log.progressPercent !== undefined ? `${log.progressPercent} percentage points` : `${log.pages} pages`} · ${book.title}`, POINTS.readingSession);
+      setBooks(loadBooks()); setLogs(loadLogs()); setValue(""); setMinutes("");
+      setMessage(log.progressPercent !== undefined ? `Recorded ${log.progressPercent} percentage points; now ${log.toPercent}% through ${book.title}.` : method === "listening" ? `Recorded ${log.minutes} listening minutes. Your reading page target is unchanged.` : `Recorded ${log.pages} pages in ${book.title}.`);
+      window.dispatchEvent(new Event("alexandria:data"));
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save this session."); }
   }
 
   return <article className="card reading-tally-card">
     <div className="kicker">Daily reading tally</div>
-    <h2>{sourceId ? "Log pages for this book." : "Close the day with a page count."}</h2>
-    <p className="meta">Enter either pages read today or the page you are now on. Alexandria calculates the daily change and keeps a dated history.</p>
+    <h2>{percentageMode ? "Log your book percentage." : sourceId ? "Log progress for this book." : "Close the day with your reading progress."}</h2>
+    <p className="meta">Enter your current percentage or page. Alexandria records the increase since your last entry and keeps a dated history.</p>
 
+    {book && <VoiceBookSetup key={book.id} book={book} />}
     <form className="reading-tally-form top-gap" onSubmit={submit}>
       {!sourceId && <label>Book
         <select value={selectedId} onChange={(event) => setBookId(event.target.value)}>
           {books.map((book) => <option key={book.id} value={book.id}>{book.title}</option>)}
         </select>
       </label>}
+      <label>Reading method<select value={method} onChange={event => setMethod(event.target.value as ReadingMethod)}><option value="reading">Reading</option><option value="listening">Listening only</option><option value="reading-listening">Reading while listening</option></select></label>
+      {!percentageMode && method !== "listening" && <label>Book format<select value={format} onChange={event => setFormat(event.target.value as typeof format)}><option value="physical">Physical book</option><option value="kindle">Kindle</option><option value="pdf">PDF</option></select></label>}
       <label>Input type
-        <select value={mode} onChange={(event) => setMode(event.target.value as "pages" | "current")}>
-          <option value="current">Current page</option>
-          <option value="pages">Pages read today</option>
+        <select value={effectiveMode} onChange={(event) => { setMode(event.target.value as typeof mode); setValue(""); }}>
+          {book?.progressMode !== "percentage" && <><option value="current">Current page</option><option value="pages">Pages read today</option></>}
+          <option value="percentage">Current percentage (voice reader)</option>
         </select>
       </label>
-      <label>{mode === "current" ? "Page now" : "Pages read"}
-        <input type="number" min="0" inputMode="numeric" value={value} onChange={(event) => setValue(event.target.value)} placeholder={mode === "current" ? "e.g. 148" : "e.g. 24"} />
+      {(percentageMode || method !== "listening") && <label>{percentageMode ? "Percentage now" : mode === "current" ? "Page now" : "Pages read"}
+        <input type="number" min="0" max={percentageMode ? 100 : undefined} step={percentageMode ? "any" : "1"} inputMode="decimal" value={value} onChange={(event) => setValue(event.target.value)} placeholder={percentageMode ? "e.g. 28.6" : mode === "current" ? "e.g. 148" : "e.g. 24"} />
+      </label>}
+      <label>Actual session minutes {(percentageMode || method === "reading") && <span className="optional">optional</span>}
+        <input type="number" min="0" step="any" inputMode="decimal" value={minutes} onChange={(event) => setMinutes(event.target.value)} placeholder="e.g. 35" />
       </label>
-      <label>Minutes <span className="optional">optional</span>
-        <input type="number" min="0" inputMode="numeric" value={minutes} onChange={(event) => setMinutes(event.target.value)} placeholder="e.g. 35" />
-      </label>
-      <button className="small-btn primary" type="submit" disabled={!selectedId || !value}>Save daily reading →</button>
+      {percentageMode && <label>Voice speed · words per minute<input required type="number" min="1" step="any" value={voiceWpm} onChange={event => setVoiceWpm(event.target.value)} /></label>}
+      {!percentageMode && method !== "reading" && <><label>Audio speed<input type="number" min="0.1" step="0.1" value={audioSpeed} onChange={event => setAudioSpeed(event.target.value)} /></label><label>Listening opportunity<select value={listeningContext} onChange={event => setListeningContext(event.target.value)}>{["Focused session", "Walking / commute", "Exercise", "Chores / routine tasks", "Other"].map(context => <option key={context}>{context}</option>)}</select></label></>}
+      {percentageMode && <label>Listening opportunity<select value={listeningContext} onChange={event => setListeningContext(event.target.value)}>{["Focused session", "In the car", "Walking / commute", "Exercise", "Chores / routine tasks", "Other"].map(context => <option key={context}>{context}</option>)}</select></label>}
+      <button className="small-btn primary" type="submit" disabled={!selectedId || (percentageMode ? !value : method === "listening" ? !minutes : !value)}>Save session →</button>
+      {!percentageMode && method !== "reading" && <details className="form-span"><summary>Audio training settings (optional)</summary><div className="form-grid top-gap"><label>Comfortable speed<input type="number" min="0.1" step="0.1" value={comfortableSpeed} onChange={event => setComfortableSpeed(event.target.value)} /></label><label>Training speed<input type="number" min="0.1" step="0.1" value={trainingSpeed} onChange={event => setTrainingSpeed(event.target.value)} /></label></div><p className="meta">Use recall to check understanding before increasing speed. Audio is played in your audiobook app.</p></details>}
     </form>
 
     {message && <p className="saved-note top-gap">{message}</p>}
 
-    <div className="reading-tally-stats top-gap">
+    {percentageMode && book && <><div className="reading-tally-stats top-gap">
+      <div><strong>{Number(bookPercent(book).toFixed(2))}%</strong><span>book completed</span></div>
+      <div><strong>+{Number(percentToday.toFixed(2))}</strong><span>percentage points today</span></div>
+      <div><strong>14.29</strong><span>percentage points / day (100 ÷ 7)</span></div>
+      <div><strong>{dailyMinutes === undefined ? "—" : Math.ceil(dailyMinutes)}</strong><span>estimated minutes / day at {voiceWpm} WPM</span></div>
+    </div><p className="meta top-gap">{remainingMinutes === undefined ? "Set the full-book duration above to estimate time." : `Estimated time remaining: ${Math.ceil(remainingMinutes)} minutes at ${voiceWpm} WPM.`} Time is an estimate based on the duration and reference WPM you entered; pauses and voice settings can change it. Percentage progress is your completion evidence. Log separate sessions when WPM changes.</p></>}
+    {!percentageMode && <div className="reading-tally-stats top-gap">
       <div><strong>{pagesToday}</strong><span>pages today</span></div>
       <div><strong>{average7}</strong><span>7-day avg / day</span></div>
       <div><strong>{highlightsToday}</strong><span>knowledge captures today</span></div>
       <div><strong>{knowledgeRate}</strong><span>captures per 10 pages</span></div>
-    </div>
+    </div>}
 
-    <p className="meta top-gap">Record the pages you actually read. Your book’s daily requirement is its total pages divided by seven.</p>
+    <p className="meta top-gap">{percentageMode ? "Record the percentage actually reached in your reader. Slower speech changes the time needed, while the seven-day completion target stays fixed." : "Record the pages you actually read. Your book’s daily requirement is its total pages divided by seven."}</p>
   </article>;
 }

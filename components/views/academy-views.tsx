@@ -33,7 +33,7 @@ function LimitationNote({ children }: { children: string }) {
 }
 
 /** Purely additive: renders nothing unless an AI provider is configured in Settings. */
-function AIFeedbackPanel({ context, instruction, userResponse }: { context: string; instruction: string; userResponse: string }) {
+export function AIFeedbackPanel({ context, instruction, userResponse }: { context: string; instruction: string; userResponse: string }) {
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [feedback, setFeedback] = useState("");
   if (!isAIConfigured()) return null;

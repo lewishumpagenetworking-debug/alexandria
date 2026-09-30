@@ -145,7 +145,7 @@ export function ProgressView() {
                 <div className="stat"><b>{captures.length}</b><span>captures</span></div>
                 <div className="stat"><b>{highlights.length}</b><span>highlights</span></div>
                 <div className="stat"><b>{principles.length}</b><span>principles</span></div>
-                <div className="stat"><b>{applications.length}</b><span>applications</span></div>
+                <div className="stat"><b>{applications.filter((a) => a.status !== "planned").length}</b><span>applications attempted</span></div>
               </div>
             </article>
 
