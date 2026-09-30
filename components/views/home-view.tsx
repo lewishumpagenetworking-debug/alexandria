@@ -10,7 +10,7 @@ import { listApplications } from "@/lib/apply-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 import { ReadInsteadCard } from "@/components/read-instead-card";
 import { WeeklyReading } from "@/components/weekly-reading";
-import { DailyReadingTally } from "@/components/daily-reading-tally";
+import { BookTallyWorkspace } from "@/components/book-tally-workspace";
 
 const LEVELS = [
   { name: "Initiate", min: 0 },
@@ -190,7 +190,7 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
         <div className="home-grid">
           <div className="home-main">
             <WeeklyReading />
-            <DailyReadingTally />
+            <BookTallyWorkspace />
             <ReadInsteadCard />
             <article className="next-action-card" onClick={() => navigate(nextAction.space)}>
               <div className="na-icon">{nextAction.icon}</div>

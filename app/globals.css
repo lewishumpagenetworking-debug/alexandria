@@ -828,3 +828,14 @@ dialog::backdrop { background: rgba(6, 5, 4, .76); backdrop-filter: blur(4px); }
 .weekly-reading-card .list-item { flex-wrap: wrap; }
 .reading-week-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
 .reading-week-table th, .reading-week-table td { text-align: left; padding: 8px 4px; border-bottom: 1px solid #ffffff16; }
+
+.book-folder-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.book-folder { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; text-align: left; border: 1px solid #b49b6355; border-radius: 4px 12px 12px 12px; background: #b49b6309; color: inherit; padding: 20px; cursor: pointer; min-width: 0; }
+.book-folder:hover, .book-folder:focus-visible { background: #b49b6318; border-color: #b49b63; }
+.book-folder strong { font-size: 18px; overflow-wrap: anywhere; }
+.book-folder > span:not(.folder-mark) { font-size: 12px; opacity: .75; }
+.folder-mark { color: #b49b63; font-size: 24px; }
+.book-tally-workspace .card-head { flex-wrap: wrap; gap: 12px; }
+.book-entry-form input, .book-folder-detail textarea { width: 100%; min-width: 0; }
+.book-folder-detail h3 { overflow-wrap: anywhere; }
+@media (max-width: 480px) { .book-folder-grid { grid-template-columns: 1fr; } }
