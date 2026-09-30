@@ -5,7 +5,7 @@ import { executionStatus, listCommitments, startCommitment, londonDay, shiftDay 
 import { BookMetaPage } from "@/components/book-meta-page";
 
 export function WeeklyReading() {
-  const [books, setBooks] = useState(loadBooks);
+  const [books, setBooks] = useState(() => loadBooks({ includeArchived: true, includeDeleted: true }));
   const [logs, setLogs] = useState(loadLogs);
   const [plans, setPlans] = useState(listCommitments);
   const [bookId, setBookId] = useState("");
@@ -13,7 +13,7 @@ export function WeeklyReading() {
   const [message, setMessage] = useState("");
   const [metaId, setMetaId] = useState("");
   useEffect(() => {
-    const sync = () => { setBooks(loadBooks()); setLogs(loadLogs()); setPlans(listCommitments()); };
+    const sync = () => { setBooks(loadBooks({ includeArchived: true, includeDeleted: true })); setLogs(loadLogs()); setPlans(listCommitments()); };
     sync(); window.addEventListener("alexandria:data", sync); window.addEventListener("storage", sync);
     const timer = window.setInterval(sync, 60000);
     return () => { clearInterval(timer); window.removeEventListener("alexandria:data", sync); window.removeEventListener("storage", sync); };
@@ -21,9 +21,9 @@ export function WeeklyReading() {
   const active = plans.find(plan => { const book = books.find(b => b.id === plan.bookId); return book && book.currentPage < plan.totalPages; });
   const book = books.find(b => b.id === active?.bookId);
   const status = active && book ? executionStatus(active, book, logs) : null;
-  const candidates = books.filter(b => !b.completed && !plans.some(p => p.bookId === b.id));
-  const selectedId = bookId || candidates[0]?.id || "";
-  const selectedBook = books.find(b => b.id === selectedId);
+  const candidates = books.filter(b => !b.completed && !b.archivedAt && !b.deletedAt && !plans.some(p => p.bookId === b.id));
+  const selectedId = candidates.some(book => book.id === bookId) ? bookId : candidates[0]?.id || "";
+  const selectedBook = candidates.find(b => b.id === selectedId);
   const metaBook = books.find(b => b.id === metaId);
   const today = londonDay();
   const completedDates = books.flatMap(b => b.readingFinishedAt ? [londonDay(new Date(b.readingFinishedAt))] : []);
@@ -35,7 +35,7 @@ export function WeeklyReading() {
     <p className="meta">1 book per week · 4 books per month · 48 books per year</p>
     <p className="meta top-gap">Verified finishes: {monthCount} / 4 this month · {yearCount} / 48 this year. Older finishes without a completion date are excluded.</p>
     {active && book && status ? <>
-      <h3 className="top-gap">{book.title}</h3>
+      <h3 className="top-gap">{book.title}{book.deletedAt ? " · In Trash" : book.archivedAt ? " · Archived" : ""}</h3>
       <div className="reading-tally-stats top-gap">
         <div><strong>{Number((active.totalPages / 7).toFixed(2))}</strong><span>pages / day ({active.totalPages} ÷ 7)</span></div>
         <div><strong>{status.pagesToday} / {status.quota}</strong><span>today’s recorded pages</span></div>
@@ -43,6 +43,7 @@ export function WeeklyReading() {
         <div><strong>{status.remainingToday}</strong><span>pages still required today</span></div>
       </div>
       <p className={status.overdue || status.behind ? "saved-note top-gap" : "meta top-gap"}>{status.overdue ? "Deadline missed. Finish the book; the deadline remains recorded." : status.behind ? `${status.behind} pages behind the schedule entering today. Catch up and meet today's quota.` : status.remainingToday === 0 ? "Today's quota met. Keep the seven-day commitment." : "Today's quota is outstanding."} Deadline: {status.deadline} (London).</p>
+      {(book.archivedAt || book.deletedAt) && <p className="meta">Restore this book from Archive or Trash in the reading tally to resume logging. This commitment retains its deadline.</p>}
       <p className="meta">Whole-page targets distribute rounding across seven days and total exactly {active.totalPages} pages. Reading another book does not satisfy this book’s quota.</p>
       <table className="reading-week-table"><caption>Seven-day reading record</caption><thead><tr><th>Date</th><th>Quota</th><th>Recorded</th><th>Status</th></tr></thead><tbody>{Array.from({ length: 7 }, (_, index) => {
         const date = shiftDay(active.startDate, index);
@@ -61,7 +62,7 @@ export function WeeklyReading() {
       <label>This week’s book<select value={selectedId} onChange={event => { setBookId(event.target.value); setTotal(""); }}>{candidates.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}</select></label>
       <label>Total pages<input required type="number" min="1" step="1" value={total || (selectedBook && selectedBook.totalPages > 1 ? selectedBook.totalPages : "")} onChange={event => setTotal(event.target.value)} /></label>
       <button className="small-btn primary" disabled={!selectedBook}>Commit to seven days →</button>
-      <p className="meta">{candidates.length ? "The deadline starts today. Total pages and start date are fixed for this commitment." : "Add your next book in the Library to begin."}</p>
+      <p className="meta">{candidates.length ? "The deadline starts today. Total pages and start date are fixed for this commitment." : "Use Start Book in the reading tally below to begin."}</p>
     </form>}
     {message && <p role="status" className="saved-note">{message}</p>}
     {plans.length > 0 && <details className="top-gap"><summary>Commitment history & book meta pages</summary><div className="list">{plans.map(plan => { const b = books.find(item => item.id === plan.bookId); if (!b) return null; const s = executionStatus(plan, b, logs);  return <div className="list-item" key={plan.bookId}><strong>{b.title}</strong><span>{plan.startDate} → {s.deadline} · {b.currentPage}/{plan.totalPages} pages · {s.finished ? b.readingFinishedAt ? londonDay(new Date(b.readingFinishedAt)) <= s.deadline ? "Finished on time" : "Finished late" : "Reading finished; completion timing unverified" : s.overdue ? "Deadline missed" : "In progress"}</span><button className="small-btn" onClick={() => setMetaId(b.id)}>Book meta page</button><details><summary>Daily evidence</summary>{Array.from({ length: 7 }, (_, index) => {

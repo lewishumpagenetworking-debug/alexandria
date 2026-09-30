@@ -55,7 +55,7 @@ function masteryFromCard(card?: RetrievalCard): KnowledgeUnitMastery {
 }
 
 export function listKnowledgeUnits(): KnowledgeUnit[] {
-  const books = loadBooks();
+  const books = loadBooks({ includeArchived: true, includeDeleted: true });
   const highlights = listHighlights();
   const interpretations = listInterpretations();
   const principles = listPrinciples();

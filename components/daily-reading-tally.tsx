@@ -10,7 +10,7 @@ function dayKey(date: Date) {
   return londonDay(date);
 }
 
-export function DailyReadingTally() {
+export function DailyReadingTally({ sourceId }: { sourceId?: string } = {}) {
   const [books, setBooks] = useState(() => loadBooks());
   const [logs, setLogs] = useState(() => loadLogs());
   const [bookId, setBookId] = useState(() => loadBooks().find((book) => !book.completed)?.id ?? loadBooks()[0]?.id ?? "");
@@ -24,25 +24,29 @@ export function DailyReadingTally() {
       setBooks(loadBooks());
       setLogs(loadLogs());
     };
+    sync();
     window.addEventListener("alexandria:data", sync);
-    return () => window.removeEventListener("alexandria:data", sync);
+    window.addEventListener("storage", sync);
+    return () => { window.removeEventListener("alexandria:data", sync); window.removeEventListener("storage", sync); };
   }, []);
 
+  const selectedId = sourceId ?? (books.some(book => book.id === bookId) ? bookId : books.find(book => !book.completed)?.id ?? books[0]?.id ?? "");
+  const scopedLogs = sourceId ? logs.filter(log => log.bookId === sourceId) : logs;
   const today = dayKey(new Date());
-  const todaysLogs = logs.filter((log) => log.createdAt && londonDay(new Date(log.createdAt)) === today);
+  const todaysLogs = scopedLogs.filter((log) => log.createdAt && londonDay(new Date(log.createdAt)) === today);
   const pagesToday = todaysLogs.reduce((sum, log) => sum + (log.pages ?? 0), 0);
 
   const last7 = useMemo(() => {
     const keys = Array.from({ length: 7 }, (_, index) => dayKey(new Date(Date.now() - index * 86400000)));
-    return keys.map((key) => logs.filter((log) => log.createdAt && londonDay(new Date(log.createdAt)) === key).reduce((sum, log) => sum + (log.pages ?? 0), 0));
-  }, [logs]);
+    return keys.map((key) => scopedLogs.filter((log) => log.createdAt && londonDay(new Date(log.createdAt)) === key).reduce((sum, log) => sum + (log.pages ?? 0), 0));
+  }, [logs, sourceId]);
   const average7 = Math.round(last7.reduce((sum, pages) => sum + pages, 0) / 7);
-  const highlightsToday = listHighlights().filter((item) => item.capturedAt?.startsWith(today)).length;
+  const highlightsToday = listHighlights().filter((item) => (!sourceId || item.sourceId === sourceId) && item.capturedAt && londonDay(new Date(item.capturedAt)) === today).length;
   const knowledgeRate = pagesToday > 0 ? Math.round((highlightsToday / pagesToday) * 10 * 10) / 10 : 0;
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
-    const book = books.find((item) => item.id === bookId);
+    const book = books.find((item) => item.id === selectedId);
     const numeric = Math.max(0, Number(value) || 0);
     if (!book || numeric <= 0) return;
 
@@ -86,15 +90,15 @@ export function DailyReadingTally() {
 
   return <article className="card reading-tally-card">
     <div className="kicker">Daily reading tally</div>
-    <h2>Close the day with a page count.</h2>
+    <h2>{sourceId ? "Log pages for this book." : "Close the day with a page count."}</h2>
     <p className="meta">Enter either pages read today or the page you are now on. Alexandria calculates the daily change and keeps a dated history.</p>
 
     <form className="reading-tally-form top-gap" onSubmit={submit}>
-      <label>Book
-        <select value={bookId} onChange={(event) => setBookId(event.target.value)}>
+      {!sourceId && <label>Book
+        <select value={selectedId} onChange={(event) => setBookId(event.target.value)}>
           {books.map((book) => <option key={book.id} value={book.id}>{book.title}</option>)}
         </select>
-      </label>
+      </label>}
       <label>Input type
         <select value={mode} onChange={(event) => setMode(event.target.value as "pages" | "current")}>
           <option value="current">Current page</option>
@@ -107,7 +111,7 @@ export function DailyReadingTally() {
       <label>Minutes <span className="optional">optional</span>
         <input type="number" min="0" inputMode="numeric" value={minutes} onChange={(event) => setMinutes(event.target.value)} placeholder="e.g. 35" />
       </label>
-      <button className="small-btn primary" type="submit" disabled={!bookId || !value}>Save daily reading →</button>
+      <button className="small-btn primary" type="submit" disabled={!selectedId || !value}>Save daily reading →</button>
     </form>
 
     {message && <p className="saved-note top-gap">{message}</p>}
@@ -119,6 +123,6 @@ export function DailyReadingTally() {
       <div><strong>{knowledgeRate}</strong><span>captures per 10 pages</span></div>
     </div>
 
-    <p className="meta top-gap">Record the pages you actually read. Your fixed daily requirement is shown in the weekly commitment above.</p>
+    <p className="meta top-gap">Record the pages you actually read. Your book’s daily requirement is its total pages divided by seven.</p>
   </article>;
 }

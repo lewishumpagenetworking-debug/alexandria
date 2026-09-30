@@ -13,7 +13,7 @@ import type { ImportPreview, ImportRow } from "@/services/import/spreadsheet-imp
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 import { AgoraView, FirstPrinciplesView, ForumView, InterrogationView, type BookStudyContext } from "@/components/views/academy-views";
 import { PageHeader, Rule } from "@/components/page-header";
-import { BookMetaPage } from "@/components/book-meta-page";
+import { BookTallyWorkspace } from "@/components/book-tally-workspace";
 import { validateReading } from "@/lib/reading-execution";
 import { ImportNotesWorkspace } from "@/components/import-notes-workspace";
 
@@ -58,6 +58,7 @@ export function LibraryView() {
   const [studyAnchor, setStudyAnchor] = useState<BookStudyAnchor | null>(null);
   const [studyReasoning, setStudyReasoning] = useState<{ interrogation?: string[]; reduce?: Record<string, string>; rebuild?: Record<string, string>; agora?: string }>({});
   const [manageLibrary, setManageLibrary] = useState(false);
+  const [manageBooks, setManageBooks] = useState<"new" | "manage" | null>(null);
   useEffect(() => {
     const sync = () => { const next = loadBooks(); setBooks(next); setSelected(prior => prior ? next.find(book => book.id === prior.id) ?? null : null); };
     sync(); window.addEventListener("alexandria:data", sync);
@@ -75,6 +76,8 @@ export function LibraryView() {
     setStudyPoints(0);
     setStudyBests([]);
   }
+
+  if (manageBooks) return <section className="view active"><div className="content"><BookTallyWorkspace initiallyCreate={manageBooks === "new"} onBack={() => setManageBooks(null)} /></div></section>;
 
   if (manageLibrary) return <ImportNotesWorkspace initialSourceId={selected?.id ?? ""} onBack={() => { setManageLibrary(false); setBooks(loadBooks()); }} onComplete={() => { setManageLibrary(false); setBooks(loadBooks()); }} />;
 
@@ -124,8 +127,8 @@ export function LibraryView() {
 
     return <section className="view active"><div className="content">
       <button className="action-link back" onClick={() => setSelected(null)}>← Return to the Library</button>
-      <div className="source-hero"><div className="folio-cover">{selected.title}</div><div><div className="eyebrow">Source · Book</div><h1 className="page-title">{selected.title}</h1><p className="page-intro">{selected.author} · {selected.currentPage} of {selected.totalPages} pages · {bookHighlights.length} highlights · {bookPrinciples.length} principles</p><div className="progress"><span style={{ width: `${Math.round(selected.currentPage / selected.totalPages * 100)}%` }} /></div></div></div>
-      <BookMetaPage key={selected.id} book={selected} />
+      <div className="source-hero"><div className="folio-cover">{selected.title}</div><div><div className="eyebrow">Source · Book</div><h1 className="page-title">{selected.title}</h1><p className="page-intro">{selected.author} · {selected.totalPages > 1 ? `${selected.currentPage} of ${selected.totalPages} pages` : "Page count not set yet"} · {bookHighlights.length} highlights · {bookPrinciples.length} principles</p><div className="progress"><span style={{ width: `${Math.round(selected.currentPage / selected.totalPages * 100)}%` }} /></div></div></div>
+      <BookTallyWorkspace key={selected.id} initialBookId={selected.id} />
       <div className="button-row top-gap">
         <button className="small-btn primary" disabled={!canStudy} onClick={startStudy}>▶ Dissect a quote / principle</button>
         <button className="small-btn" onClick={() => setManageLibrary(true)}>⇪ Add / import notes</button>
@@ -133,7 +136,7 @@ export function LibraryView() {
       </div>
       <Rule />
       <div className="notes-list">
-        {bookHighlights.length === 0 && bookPrinciples.length === 0 && <div className="empty"><strong>No notes yet.</strong><span>Import a filled Alexandria spreadsheet or add notes manually.</span><div className="top-gap"><button className="small-btn primary" onClick={() => setManageLibrary(true)}>Add / import notes</button></div></div>}
+        {bookHighlights.length === 0 && bookPrinciples.length === 0 && <div className="empty"><strong>No notes yet.</strong><span>Your book is ready. Add quotes as you read, or import notes later.</span><div className="top-gap"><button className="small-btn primary" onClick={() => setManageLibrary(true)}>Add / import notes</button></div></div>}
         {bookHighlights.map((highlight) => <div className="note-item" key={highlight.id}><div className="kicker">Highlight{highlight.location ? ` · ${highlight.location}` : ""}</div><p>{highlight.text}</p></div>)}
         {bookPrinciples.map((principle) => <div className="note-item" key={principle.id}><div className="kicker">Principle</div><p>{principle.statement}</p></div>)}
       </div>
@@ -141,14 +144,14 @@ export function LibraryView() {
   }
 
   return <section className="view active"><div className="content"><PageHeader eyebrow="The external memory" title="The Library" intro="Sources are beginnings, not trophies. Follow an idea from encounter through challenge, application, and revision." />
-    <div className="section-tools"><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search books, authors, principles…" aria-label="Search library" /><button className="small-btn primary" onClick={() => setManageLibrary(true)}>＋ Add book / import notes</button><span className="result-count">{shown.length} sources found</span></div>
-    <div className="source-grid library-shelves">{shown.map((book, index) => <button className="book-card" onClick={() => setSelected(book)} key={book.id}><div className={`folio-cover tone-${index % 4}`}>{book.title}</div><div><span className="type">Book · {book.author}</span><h3>{book.title}</h3><p>{book.currentPage} / {book.totalPages} pages · {getHighlightsForSource(book.id).length} highlights · {getPrinciplesForSource(book.id).length} principles</p><div className="progress"><span style={{ width: `${Math.round(book.currentPage / book.totalPages * 100)}%` }} /></div></div></button>)}</div>
+    <div className="section-tools"><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search books, authors, principles…" aria-label="Search library" /><button className="small-btn primary" onClick={() => setManageBooks("new")}>＋ Start Book</button><button className="small-btn" onClick={() => setManageBooks("manage")}>Manage books</button><span className="result-count">{shown.length} sources found</span></div>
+    <div className="source-grid library-shelves">{shown.map((book, index) => <button className="book-card" onClick={() => setSelected(book)} key={book.id}><div className={`folio-cover tone-${index % 4}`}>{book.title}</div><div><span className="type">Book · {book.author}</span><h3>{book.title}</h3><p>{book.totalPages > 1 ? `${book.currentPage} / ${book.totalPages} pages` : "Ready to start reading"} · {getHighlightsForSource(book.id).length} highlights · {getPrinciplesForSource(book.id).length} principles</p><div className="progress"><span style={{ width: `${Math.round(book.currentPage / book.totalPages * 100)}%` }} /></div></div></button>)}</div>
   </div></section>;
 }
 
 export function HallsView() {
   const [selected, setSelected] = useState<(typeof halls)[number] | null>(null);
-  const books = loadBooks();
+  const books = loadBooks({ includeArchived: true, includeDeleted: true });
   const activeHalls = halls.filter((hall) => getPrinciplesForHall(hall.id).length > 0);
   const hallPrinciples = selected ? getPrinciplesForHall(selected.id) : [];
   const bookTitle = (sourceId: string) => books.find((book) => book.id === sourceId)?.title;
