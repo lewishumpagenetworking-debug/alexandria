@@ -185,6 +185,7 @@ export function ApplyView() {
               {recentApps.map((app) => (
                 <article key={app.id} className="card apply-record">
                   <blockquote className="apply-principle-text">{app.principleText}</blockquote>
+                  {app.sourceTitle && <p className="meta">Book: {app.sourceTitle} · Outcome review: {app.reviewDate}</p>}
                   <div className="apply-details">
                     <div><span className="recall-label">Context</span><p>{app.context}</p></div>
                     <div><span className="recall-label">Action</span><p>{app.action}</p></div>

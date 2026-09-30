@@ -819,3 +819,12 @@ dialog::backdrop { background: rgba(6, 5, 4, .76); backdrop-filter: blur(4px); }
   display: inline-block;
   margin-top: 8px;
 }
+
+/* Module 1: the fixed weekly commitment leads the daily workspace. */
+.weekly-reading-card { border-color: var(--gold, #b49b63); }
+.weekly-reading-card summary { cursor: pointer; }
+.book-meta-card { margin-top: 24px; }
+.book-meta-card textarea { min-height: 150px; width: 100%; }
+.weekly-reading-card .list-item { flex-wrap: wrap; }
+.reading-week-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+.reading-week-table th, .reading-week-table td { text-align: left; padding: 8px 4px; border-bottom: 1px solid #ffffff16; }

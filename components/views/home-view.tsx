@@ -9,6 +9,7 @@ import { getTotalPoints, getPointsToday, listPointEvents } from "@/lib/points-st
 import { listApplications } from "@/lib/apply-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 import { ReadInsteadCard } from "@/components/read-instead-card";
+import { WeeklyReading } from "@/components/weekly-reading";
 import { DailyReadingTally } from "@/components/daily-reading-tally";
 
 const LEVELS = [
@@ -188,8 +189,9 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
       <div className="content">
         <div className="home-grid">
           <div className="home-main">
-            <ReadInsteadCard />
+            <WeeklyReading />
             <DailyReadingTally />
+            <ReadInsteadCard />
             <article className="next-action-card" onClick={() => navigate(nextAction.space)}>
               <div className="na-icon">{nextAction.icon}</div>
               <div className="na-body">

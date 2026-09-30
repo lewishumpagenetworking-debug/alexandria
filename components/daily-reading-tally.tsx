@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { loadBooks, loadLogs, saveBooks, saveLogs, uid } from "@/lib/application-store";
+import { londonDay, validateReading } from "@/lib/reading-execution";
 import { listHighlights } from "@/lib/library-notes-store";
 import { awardPoints, POINTS } from "@/lib/points-store";
 
 function dayKey(date: Date) {
-  return new Intl.DateTimeFormat("en-CA").format(date);
+  return londonDay(date);
 }
 
 export function DailyReadingTally() {
@@ -28,12 +29,12 @@ export function DailyReadingTally() {
   }, []);
 
   const today = dayKey(new Date());
-  const todaysLogs = logs.filter((log) => log.createdAt?.startsWith(today));
+  const todaysLogs = logs.filter((log) => log.createdAt && londonDay(new Date(log.createdAt)) === today);
   const pagesToday = todaysLogs.reduce((sum, log) => sum + (log.pages ?? 0), 0);
 
   const last7 = useMemo(() => {
     const keys = Array.from({ length: 7 }, (_, index) => dayKey(new Date(Date.now() - index * 86400000)));
-    return keys.map((key) => logs.filter((log) => log.createdAt?.startsWith(key)).reduce((sum, log) => sum + (log.pages ?? 0), 0));
+    return keys.map((key) => logs.filter((log) => log.createdAt && londonDay(new Date(log.createdAt)) === key).reduce((sum, log) => sum + (log.pages ?? 0), 0));
   }, [logs]);
   const average7 = Math.round(last7.reduce((sum, pages) => sum + pages, 0) / 7);
   const highlightsToday = listHighlights().filter((item) => item.capturedAt?.startsWith(today)).length;
@@ -51,12 +52,13 @@ export function DailyReadingTally() {
     const nextPage = mode === "current"
       ? Math.max(book.currentPage, numeric)
       : book.currentPage + pagesRead;
-    const nextTotal = Math.max(book.totalPages || 1, nextPage);
+    const error = validateReading(book, nextPage);
+    if (error) { setMessage(error); return; }
 
     const nextBooks = books.map((item) => item.id === book.id ? {
       ...item,
       currentPage: nextPage,
-      totalPages: nextTotal,
+      totalPages: item.totalPages,
       completed: item.totalPages > 1 ? nextPage >= item.totalPages : item.completed,
       lastRead: "Today",
     } : item);
@@ -117,10 +119,6 @@ export function DailyReadingTally() {
       <div><strong>{knowledgeRate}</strong><span>captures per 10 pages</span></div>
     </div>
 
-    <p className="meta top-gap">{pagesToday < average7 && average7 > 0
-      ? `Today is ${average7 - pagesToday} pages below your 7-day pace. A short final block would close the gap.`
-      : pagesToday > 0
-        ? "Today's reading is at or above your recent pace. Protect the consistency before increasing volume."
-        : "No pages are recorded today yet."}</p>
+    <p className="meta top-gap">Record the pages you actually read. Your fixed daily requirement is shown in the weekly commitment above.</p>
   </article>;
 }
