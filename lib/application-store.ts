@@ -5,6 +5,7 @@ export type StoredBook = {
   currentPage: number;
   totalPages: number;
   completed: boolean;
+  readingFinishedAt?: string;
   highlights: string[];
   principles: number;
   lastRead: string;
@@ -32,7 +33,15 @@ function read<T>(key: string, fallback: T): T {
 }
 
 export const loadBooks = () => read<StoredBook[]>(BOOKS, seedBooks);
-export const saveBooks = (books: StoredBook[]) => localStorage.setItem(BOOKS, JSON.stringify(books));
+export const saveBooks = (books: StoredBook[]) => {
+  const previous = loadBooks();
+  const next = books.map(book => {
+    const prior = previous.find(item => item.id === book.id);
+    const finished = book.totalPages > 1 && book.currentPage >= book.totalPages;
+    return { ...book, completed: finished, readingFinishedAt: book.readingFinishedAt ?? (finished && prior && prior.currentPage < prior.totalPages ? new Date().toISOString() : undefined) };
+  });
+  localStorage.setItem(BOOKS, JSON.stringify(next));
+};
 export const loadLogs = () => read<ReadingLog[]>(LOGS, []);
 export const saveLogs = (logs: ReadingLog[]) => localStorage.setItem(LOGS, JSON.stringify(logs));
 

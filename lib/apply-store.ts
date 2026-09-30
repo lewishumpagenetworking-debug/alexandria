@@ -2,6 +2,9 @@ const KEY = "alexandria-applications-v1";
 
 export interface KnowledgeApplication {
   id: string;
+  sourceId?: string;
+  sourceTitle?: string;
+  reviewDate?: string;
   principleText: string;
   principleId?: string;
   context: string;
