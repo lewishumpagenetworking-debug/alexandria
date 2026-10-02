@@ -1,3 +1,4 @@
+import type { BookCategory } from "./book-categories";
 export type InterrogationRecord = {
   id: string;
   passageText: string;
@@ -11,6 +12,7 @@ export type FirstPrinciplesStage = "reduce" | "rebuild";
 export type FirstPrinciplesWork = {
   id: string;
   stage: FirstPrinciplesStage;
+  category?: BookCategory;
   values: Record<string, string>;
   observedOutcome?: string;
   revisedStatement?: string;

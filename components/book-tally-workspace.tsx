@@ -9,8 +9,10 @@ import { ImportNotesWorkspace } from "@/components/import-notes-workspace";
 import { DailyBookWorkflow } from "@/components/daily-book-workflow";
 import { BookMetaPage } from "@/components/book-meta-page";
 
+import { BOOK_CATEGORIES, type BookCategory } from "@/lib/book-categories";
+
 type Shelf = "books" | "archive" | "trash";
-const blank = () => ({ title: "", author: "", totalPages: "", currentPage: "0", progressMode: "pages" as "pages" | "percentage", currentPercent: "0", hours: "", durationMinutes: "0", wpm: "150" });
+const blank = () => ({ title: "", author: "", totalPages: "", currentPage: "0", category: "general" as BookCategory, progressMode: "pages" as "pages" | "percentage", currentPercent: "0", hours: "", durationMinutes: "0", wpm: "150" });
 
 export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBookId = "" }: { onBack?: () => void; initiallyCreate?: boolean; initialBookId?: string } = {}) {
   const [books, setBooks] = useState(() => loadBooks({ includeArchived: true, includeDeleted: true }));
@@ -49,7 +51,7 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
     event.preventDefault();
     try {
       const voiceTotalMinutes = form.hours.trim() || Number(form.durationMinutes) ? Number(form.hours) * 60 + Number(form.durationMinutes) : undefined;
-      const tracking = { progressMode: form.progressMode, currentPercent: form.progressMode === "percentage" ? Number(form.currentPercent) : undefined, voiceTotalMinutes: form.progressMode === "percentage" ? voiceTotalMinutes : undefined, voiceReferenceWpm: form.progressMode === "percentage" ? Number(form.wpm) : undefined };
+      const tracking = { category: form.category, progressMode: form.progressMode, currentPercent: form.progressMode === "percentage" ? Number(form.currentPercent) : undefined, voiceTotalMinutes: form.progressMode === "percentage" ? voiceTotalMinutes : undefined, voiceReferenceWpm: form.progressMode === "percentage" ? Number(form.wpm) : undefined };
       if (editing && selected) updateBookDetails(selected.id, { title: form.title, author: form.author, totalPages: form.totalPages.trim() ? Number(form.totalPages) : undefined, ...tracking });
       else {
         const book = createBook({ title: form.title, author: form.author, totalPages: form.totalPages.trim() ? Number(form.totalPages) : undefined, currentPage: form.progressMode === "pages" ? Number(form.currentPage) : 0, ...tracking });
@@ -73,6 +75,7 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
     </div>
     {(creating || editing) && <form className="form-grid top-gap book-entry-form" onSubmit={save}>
       <label className="form-span">Enter a Book Title<input required autoFocus value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} placeholder="e.g. Napoleon: A Life" /></label>
+      <label className="form-span">Book category<select value={form.category} onChange={event => setForm({ ...form, category: event.target.value as BookCategory })}>{Object.entries(BOOK_CATEGORIES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       <label className="form-span">Reading format<select value={form.progressMode} onChange={event => {
         const mode = event.target.value as "pages" | "percentage";
         setForm({ ...form, progressMode: mode, currentPercent: editing && selected ? String(bookPercent(selected)) : form.totalPages && Number(form.totalPages) > 1 ? String(Number(form.currentPage) / Number(form.totalPages) * 100) : form.currentPercent });
@@ -93,14 +96,14 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
     </form>}
     {message && <p className="saved-note top-gap" role="status">{message}</p>}
     {!creating && !selected && <div className="book-folder-grid top-gap">
-      {shown.map(book => <button className="book-folder" key={book.id} onClick={() => openBook(book)}><span className="folder-mark" aria-hidden="true">▤</span><strong>{book.title}</strong><span>{book.author}</span><span>{progressLabel(book)} · {getHighlightsForSource(book.id).length} notes</span><span>{book.completed ? "Reading completed" : "In progress"}</span></button>)}
+      {shown.map(book => <button className="book-folder" key={book.id} onClick={() => openBook(book)}><span className="folder-mark" aria-hidden="true">▤</span><strong>{book.title}</strong><span>{book.author}</span><span>{BOOK_CATEGORIES[book.category ?? "general"]} · {progressLabel(book)} · {getHighlightsForSource(book.id).length} notes</span><span>{book.completed ? "Reading completed" : "In progress"}</span></button>)}
       {shown.length === 0 && <p className="meta">{shelf === "books" ? "No books here yet. Choose Start Book and enter a title to create your first tracking folder." : shelf === "archive" ? "Archived books appear here with their history and notes." : "Deleted books appear here. You can restore them without losing their work."}</p>}
     </div>}
     {!creating && selected && <section className="book-folder-detail top-gap" aria-label={`${selected.title} tracking folder`}>
       <button className="action-link" onClick={() => { setSelectedId(""); setEditing(false); setDeleteId(""); setMessage(""); }}>← All book folders</button>
-      <h3 className="top-gap">{selected.title}</h3><p className="meta">{selected.author} · {selected.progressMode === "percentage" ? progressLabel(selected) : selected.totalPages > 1 ? `${selected.currentPage} / ${selected.totalPages} pages` : "Choose pages or percentage tracking below"}</p>
+      <h3 className="top-gap">{selected.title}</h3><p className="meta">{selected.author} · {BOOK_CATEGORIES[selected.category ?? "general"]} · {selected.progressMode === "percentage" ? progressLabel(selected) : selected.totalPages > 1 ? `${selected.currentPage} / ${selected.totalPages} pages` : "Choose pages or percentage tracking below"}</p>
       <div className="button-row top-gap">
-        {!selected.deletedAt && <button className="small-btn" onClick={() => { setEditing(true); setForm({ ...blank(), title: selected.title, author: selected.author, totalPages: selected.totalPages > 1 ? String(selected.totalPages) : "", currentPage: String(selected.currentPage), progressMode: selected.progressMode ?? "pages", currentPercent: String(bookPercent(selected)), hours: selected.voiceTotalMinutes ? String(Math.floor(selected.voiceTotalMinutes / 60)) : "", durationMinutes: selected.voiceTotalMinutes ? String(selected.voiceTotalMinutes % 60) : "0", wpm: String(selected.voiceReferenceWpm ?? 150) }); }}>Edit Book</button>}
+        {!selected.deletedAt && <button className="small-btn" onClick={() => { setEditing(true); setForm({ ...blank(), category: selected.category ?? "general", title: selected.title, author: selected.author, totalPages: selected.totalPages > 1 ? String(selected.totalPages) : "", currentPage: String(selected.currentPage), progressMode: selected.progressMode ?? "pages", currentPercent: String(bookPercent(selected)), hours: selected.voiceTotalMinutes ? String(Math.floor(selected.voiceTotalMinutes / 60)) : "", durationMinutes: selected.voiceTotalMinutes ? String(selected.voiceTotalMinutes % 60) : "0", wpm: String(selected.voiceReferenceWpm ?? 150) }); }}>Edit Book</button>}
         {selected.deletedAt ? <button className="small-btn primary" onClick={() => changeState("restore")}>Restore Book</button> : <><button className="small-btn" onClick={() => changeState(selected.archivedAt ? "unarchive" : "archive")}>{selected.archivedAt ? "Unarchive Book" : "Archive Book"}</button><button className="small-btn" onClick={() => setDeleteId(selected.id)}>Delete Book</button></>}
       </div>
       {deleteId === selected.id && <div className="card top-gap" role="alert"><p>Move “{selected.title}” to Trash? Its page history, notes and breakdown will remain recoverable.</p><div className="button-row"><button className="small-btn primary" onClick={() => changeState("delete")}>Move to Trash</button><button className="small-btn" onClick={() => setDeleteId("")}>Keep Book</button></div></div>}

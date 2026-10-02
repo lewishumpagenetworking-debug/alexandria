@@ -1,5 +1,6 @@
 "use client";
 
+import { refCategory } from "@/lib/book-categories";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import {
@@ -106,7 +107,7 @@ export function PathView({ navigate }: { navigate: (space: AlexandriaSpace) => v
       onSaveForLater={saveCurrentForLater}
       onComplete={(result: InterrogationResult) => handleComplete(result)}
     />}
-    {current.exerciseType === "first-principles" && <FirstPrinciplesView
+    {current.exerciseType === "first-principles" && <FirstPrinciplesView category={refCategory(current.sourceRef)}
       key={current.id}
       stage={current.stage as "reduce" | "rebuild"}
       priorWork={current.sourceRef ? {
@@ -119,12 +120,12 @@ export function PathView({ navigate }: { navigate: (space: AlexandriaSpace) => v
     />}
     {current.exerciseType === "agora" && <AgoraView
       key={current.id}
-      studyContext={current.sourceRef ? { sourceTitle: current.sourceRef.label, anchorText: current.sourceRef.text } : undefined}
+      studyContext={current.sourceRef ? { sourceTitle: current.sourceRef.label, category: refCategory(current.sourceRef), anchorText: current.sourceRef.text } : undefined}
       onComplete={(result: AgoraResult) => handleComplete(result)}
     />}
     {current.exerciseType === "forum" && <ForumView
       key={current.id}
-      studyContext={current.sourceRef ? { sourceTitle: current.sourceRef.label, anchorText: current.sourceRef.text } : undefined}
+      studyContext={current.sourceRef ? { sourceTitle: current.sourceRef.label, category: refCategory(current.sourceRef), anchorText: current.sourceRef.text } : undefined}
       onComplete={(result: ForumResult) => handleComplete(result)}
     />}
     {current.exerciseType === "recall-check" && <RecallCheckView key={current.id} stage={current.stage as RecallStage} sourceRef={current.sourceRef} onComplete={(result: RecallCheckResult) => handleComplete(result)} />}

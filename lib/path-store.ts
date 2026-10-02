@@ -1,3 +1,4 @@
+import type { BookCategory } from "./book-categories";
 import { listCaptures } from "@/lib/capture-store";
 import { loadBooks } from "@/lib/application-store";
 import {
@@ -79,7 +80,7 @@ export interface PathStep {
 
 export type StepResult =
   | { exerciseType: "interrogation"; passageText: string; passageSource: string; responses: string[] }
-  | { exerciseType: "first-principles"; values: Record<string, string> }
+  | { exerciseType: "first-principles"; category?: BookCategory; values: Record<string, string> }
   | { exerciseType: "agora"; scenario: string; durationSeconds: number; response: string }
   | { exerciseType: "forum"; challenge: string; audience: string; format: string; response: string }
   | { exerciseType: "recall-check"; prompt: string; response: string; quality?: RetrievalQuality };
@@ -324,7 +325,7 @@ export function recordSessionResult(
     const best = recordIfBest("interrogation-depth", chars, "Longest Interrogation reconstruction");
     if (best.isNewBest) newBests.push(best.best);
   } else if (result.exerciseType === "first-principles") {
-    const work = saveFirstPrinciplesWork({ stage: firstPrinciplesStage, values: result.values });
+    const work = saveFirstPrinciplesWork({ stage: firstPrinciplesStage, category: result.category, values: result.values });
     const text = work.values["Reconstruction"] || work.values["Application"] || Object.values(work.values)[0] || "";
     registerCard("principle", work.id, `First Principles · ${firstPrinciplesStage === "reduce" ? "Reduce" : "Rebuild"}`, text);
     const chars = Object.values(result.values).reduce((sum, value) => sum + value.length, 0);

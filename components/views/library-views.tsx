@@ -1,5 +1,6 @@
 "use client";
 
+import { BOOK_CATEGORIES, type BookCategory } from "@/lib/book-categories";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { capabilityEvidence, halls } from "@/data/mock-data";
 import { loadBooks, loadLogs, saveBooks, saveLogs, seedBooks, uid, type ReadingLog, type StoredBook } from "@/lib/application-store";
@@ -102,7 +103,7 @@ export function LibraryView() {
 
     const reconstruction = studyReasoning.rebuild?.["Reconstruction"] || studyReasoning.reduce?.["Reconstruction"] || studyReasoning.rebuild?.["Fundamental truths"] || studyReasoning.reduce?.["Fundamental truths"];
     const studyContext: BookStudyContext | undefined = studyAnchor ? {
-      sourceTitle: selected.title,
+      sourceTitle: selected.title, sourceId: selected.id, category: selected.category,
       anchorText: studyAnchor.text,
       location: studyAnchor.location,
       interpretation: studyAnchor.interpretation,
@@ -117,9 +118,9 @@ export function LibraryView() {
         <div className="kicker">Active book thread · {selected.title}{studyAnchor.location ? ` · ${studyAnchor.location}` : ""}</div>
         <p>Every exercise in this session expands from the same imported knowledge item.</p>
       </article>}
-      {studyPhase === "interrogate" && <InterrogationView key={`study-interrogate-${studyAnchor?.refId}`} passage={studyAnchor ? { text: studyAnchor.text, source: selected.title } : undefined} onComplete={(result) => advanceStudy(result, "Interrogate")} />}
-      {studyPhase === "reduce" && <FirstPrinciplesView key={`study-reduce-${studyAnchor?.refId}`} stage="reduce" priorWork={studyAnchor ? { label: selected.title, text: studyAnchor.interpretation || studyAnchor.text } : undefined} onComplete={(result) => advanceStudy(result, "Reduce")} />}
-      {studyPhase === "rebuild" && <FirstPrinciplesView key={`study-rebuild-${studyAnchor?.refId}`} stage="rebuild" priorWork={studyAnchor ? { label: `${selected.title} · reduced`, text: studyReasoning.reduce?.["Fundamental truths"] || studyReasoning.reduce?.["Reconstruction"] || studyAnchor.principle || studyAnchor.text } : undefined} onComplete={(result) => advanceStudy(result, "Rebuild")} />}
+      {studyPhase === "interrogate" && <InterrogationView key={`study-interrogate-${studyAnchor?.refId}`} passage={studyAnchor ? { text: studyAnchor.text, source: selected.title, sourceId: selected.id, category: selected.category } : undefined} onComplete={(result) => advanceStudy(result, "Interrogate")} />}
+      {studyPhase === "reduce" && <FirstPrinciplesView category={selected.category ?? "general"} key={`study-reduce-${studyAnchor?.refId}`} stage="reduce" priorWork={studyAnchor ? { label: selected.title, referenceText: studyAnchor.text, referenceLabel: selected.title, text: studyAnchor.interpretation || studyAnchor.text } : undefined} onComplete={(result) => advanceStudy(result, "Reduce")} />}
+      {studyPhase === "rebuild" && <FirstPrinciplesView category={selected.category ?? "general"} key={`study-rebuild-${studyAnchor?.refId}`} stage="rebuild" priorWork={studyAnchor ? { label: `${selected.title} · reduced`, referenceText: studyAnchor.text, referenceLabel: selected.title, text: studyReasoning.reduce?.["Fundamental truths"] || studyReasoning.reduce?.["Reconstruction"] || studyAnchor.principle || studyAnchor.text } : undefined} onComplete={(result) => advanceStudy(result, "Rebuild")} />}
       {studyPhase === "agora" && <AgoraView key={`study-agora-${studyAnchor?.refId}`} studyContext={studyContext} onComplete={(result) => advanceStudy(result, "Apply")} />}
       {studyPhase === "forum" && <ForumView key={`study-forum-${studyAnchor?.refId}`} studyContext={studyContext} onComplete={(result) => advanceStudy(result, "Articulate")} />}
       {studyPhase === "done" && <article className="card completion study-loop-card"><div className="seal">✓</div><div><div className="kicker">Book thread complete</div><h2>{selected.title}</h2><p className="meta">{studyPoints} points earned{studyBests.length ? ` · New record${studyBests.length > 1 ? "s" : ""}: ${studyBests.join(", ")}` : ""}. This knowledge item has been marked as engaged, so the next session will prioritise a different imported item.</p><div className="button-row"><button className="small-btn" onClick={() => { setStudyPhase("idle"); setStudyAnchor(null); }}>Return to book</button><button className="small-btn primary" onClick={startStudy}>Study another item →</button></div></div></article>}
@@ -181,7 +182,7 @@ export function LedgerView() {
   const notesDialog = useRef<HTMLDialogElement>(null);
   const [notesBook, setNotesBook] = useState<{ id: string; title: string; author: string } | null>(null);
   const [notesBookOpenIntent, setNotesBookOpenIntent] = useState(false);
-  const [newBookForm, setNewBookForm] = useState({ title: "", author: "" });
+  const [newBookForm, setNewBookForm] = useState({ title: "", author: "", category: "general" as BookCategory });
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -191,7 +192,7 @@ export function LedgerView() {
   useEffect(() => { if (notesOpen && !notesDialog.current?.open) notesDialog.current?.showModal(); if (!notesOpen && notesDialog.current?.open) notesDialog.current.close(); }, [notesOpen]);
 
   function closeNotes() {
-    setNotesBook(null); setNotesBookOpenIntent(false); setNewBookForm({ title: "", author: "" });
+    setNotesBook(null); setNotesBookOpenIntent(false); setNewBookForm({ title: "", author: "", category: "general" as BookCategory });
     setImportPreview(null); setImportSummary(null); setImportError(null);
     setEntryMode("manual"); setManualNote({ record_type: "highlight", text: "", interpretation: "", principle: "", hall: "" });
   }
@@ -215,7 +216,7 @@ export function LedgerView() {
   function createBookForUpload(event: React.FormEvent) {
     event.preventDefault();
     if (!newBookForm.title.trim()) return;
-    const book: StoredBook = { id: uid("book"), title: newBookForm.title.trim(), author: newBookForm.author.trim() || "Unknown author", currentPage: 0, totalPages: 1, completed: false, highlights: [], principles: 0, lastRead: "Today" };
+    const book: StoredBook = { id: uid("book"), category: newBookForm.category, title: newBookForm.title.trim(), author: newBookForm.author.trim() || "Unknown author", currentPage: 0, totalPages: 1, completed: false, highlights: [], principles: 0, lastRead: "Today" };
     persist([...books, book]);
     setNotesBook({ id: book.id, title: book.title, author: book.author });
   }
@@ -283,7 +284,7 @@ export function LedgerView() {
     <dialog ref={notesDialog} onClose={closeNotes}><div className="modal-head"><div><div className="kicker">Book notes</div><h2>{notesBook ? notesBook.title : "Upload a book's notes"}</h2></div><button type="button" className="close" onClick={closeNotes}>×</button></div><div className="modal-body">
       {!notesBook ? <form onSubmit={createBookForUpload} className="form-grid">
         <label>Title<input required value={newBookForm.title} onChange={(e) => setNewBookForm({ ...newBookForm, title: e.target.value })} /></label>
-        <label>Author<input value={newBookForm.author} onChange={(e) => setNewBookForm({ ...newBookForm, author: e.target.value })} /></label>
+        <label>Author<input value={newBookForm.author} onChange={(e) => setNewBookForm({ ...newBookForm, author: e.target.value })} /></label><label>Book category<select value={newBookForm.category} onChange={e => setNewBookForm({ ...newBookForm, category: e.target.value as BookCategory })}>{Object.entries(BOOK_CATEGORIES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <div className="form-span modal-actions"><span className="voice-note">Creates the book, then gives you the notes template</span><button className="small-btn primary">Continue →</button></div>
       </form> : <>
         <div className="entry-toggle">
