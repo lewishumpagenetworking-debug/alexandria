@@ -73,30 +73,55 @@ export function uid(prefix: string) {
   return `${prefix}-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
 }
 
-export function createBook(input: { title: string; author?: string; totalPages?: number; currentPage?: number }): StoredBook {
+export type BookTrackingInput = {
+  progressMode?: "pages" | "percentage";
+  currentPercent?: number;
+  voiceTotalMinutes?: number;
+  voiceReferenceWpm?: number;
+};
+function validateVoiceDetails(input: BookTrackingInput) {
+  if (input.currentPercent !== undefined && (!Number.isFinite(input.currentPercent) || input.currentPercent < 0 || input.currentPercent > 100)) throw new Error("Percentage must be between 0 and 100.");
+  if (input.voiceTotalMinutes !== undefined && (!Number.isFinite(input.voiceTotalMinutes) || input.voiceTotalMinutes <= 0)) throw new Error("Full-book duration must be positive.");
+  if (input.voiceReferenceWpm !== undefined && (!Number.isFinite(input.voiceReferenceWpm) || input.voiceReferenceWpm <= 0)) throw new Error("Voice speed must be a positive WPM value.");
+}
+export function createBook(input: { title: string; author?: string; totalPages?: number; currentPage?: number } & BookTrackingInput): StoredBook {
+  validateVoiceDetails(input);
+  if (input.currentPercent === 100) throw new Error("Starting percentage must be below 100.");
   const title = input.title.trim();
   const currentPage = input.currentPage ?? 0;
   const totalPages = input.totalPages ?? 1;
   if (!title) throw new Error("Enter a book title.");
   if (input.totalPages !== undefined && (!Number.isInteger(totalPages) || totalPages < 2)) throw new Error("Enter the actual total pages (at least 2).");
   if (!Number.isInteger(currentPage) || currentPage < 0 || currentPage >= totalPages) throw new Error("Starting page must be a whole number below the total pages.");
-  const book: StoredBook = { id: uid("book"), title, author: input.author?.trim() || "Unknown author", totalPages, currentPage, completed: false, highlights: [], principles: 0, lastRead: "Not logged yet" };
+  const book: StoredBook = { id: uid("book"), title, author: input.author?.trim() || "Unknown author", totalPages, currentPage, progressMode: input.progressMode ?? "pages", currentPercent: input.progressMode === "percentage" ? input.currentPercent ?? 0 : undefined, voiceTotalMinutes: input.voiceTotalMinutes, voiceReferenceWpm: input.voiceReferenceWpm, voiceWpm: input.voiceReferenceWpm, completed: false, highlights: [], principles: 0, lastRead: "Not logged yet" };
   saveBooks([...loadBooks({ includeArchived: true, includeDeleted: true }), book]);
   window.dispatchEvent(new Event("alexandria:data"));
   return book;
 }
 
-export function updateBookDetails(id: string, input: { title: string; author: string; totalPages?: number }): void {
+export function updateBookDetails(id: string, input: { title: string; author: string; totalPages?: number } & BookTrackingInput): void {
   const books = loadBooks({ includeArchived: true, includeDeleted: true });
   const book = books.find(item => item.id === id && !item.deletedAt);
   if (!book) throw new Error("This book is unavailable.");
+  validateVoiceDetails(input);
   if (!input.title.trim()) throw new Error("Enter a book title.");
   const totalPages = input.totalPages ?? book.totalPages;
   if (input.totalPages !== undefined && (!Number.isInteger(input.totalPages) || input.totalPages < 2 || (input.totalPages < book.currentPage || (!book.completed && input.totalPages === book.currentPage)))) throw new Error("Total pages must be a whole number at least as large as the current page.");
   const plans = read<{ bookId: string; totalPages: number; unit?: "percentage"; pageTotal?: number }[]>("alexandria-reading-commitments-v1", []);
   const plan = plans.find(item => item.bookId === id);
   if (plan && (plan.unit !== "percentage" || plan.pageTotal) && totalPages !== (plan.pageTotal ?? plan.totalPages)) throw new Error("The total pages are fixed by this book's seven-day commitment.");
-  saveBooks(books.map(item => item.id === id ? { ...item, title: input.title.trim(), author: input.author.trim() || "Unknown author", totalPages } : item));
+  const mode = input.progressMode ?? book.progressMode ?? "pages";
+  const oldPercent = book.currentPercent ?? (book.totalPages > 1 ? book.currentPage / book.totalPages * 100 : 0);
+  const hasEvidence = !!plan || loadLogs().some(log => log.bookId === id);
+  if (hasEvidence && input.currentPercent !== undefined && Math.abs(input.currentPercent - oldPercent) > 1e-7) throw new Error("Starting progress is locked after tracking begins. Log new progress in the tally.");
+  const percent = input.currentPercent ?? oldPercent;
+  if (!hasEvidence && !book.completed && percent === 100) throw new Error("Starting percentage must be below 100.");
+  if (mode === "pages" && book.progressMode === "percentage" && totalPages <= 1) throw new Error("Enter the physical book’s total pages to switch to page tracking.");
+  const nextPage = mode === "pages" && book.progressMode === "percentage" ? Math.floor(totalPages * percent / 100) : book.currentPage;
+  // The format can change, while the original seven-day deadline and evidence stay fixed.
+  const nextPlans = plans.map(p => p.bookId !== id ? p : mode === "percentage" && p.unit !== "percentage" ? { ...p, pageTotal: p.totalPages, totalPages: 100, unit: "percentage" as const } : mode === "pages" && p.unit === "percentage" ? { ...p, totalPages, pageTotal: undefined, unit: undefined } : p);
+  saveBooks(books.map(item => item.id === id ? { ...item, title: input.title.trim(), author: input.author.trim() || "Unknown author", totalPages, progressMode: mode, currentPage: nextPage, currentPercent: mode === "percentage" || book.progressMode === "percentage" ? percent : item.currentPercent, voiceTotalMinutes: input.voiceTotalMinutes ?? item.voiceTotalMinutes, voiceReferenceWpm: input.voiceReferenceWpm ?? item.voiceReferenceWpm, voiceWpm: input.voiceReferenceWpm ?? item.voiceWpm } : item));
+  if (plan) localStorage.setItem("alexandria-reading-commitments-v1", JSON.stringify(nextPlans));
   saveLogs(loadLogs().map(log => log.bookId === id ? { ...log, bookTitle: input.title.trim() } : log));
   window.dispatchEvent(new Event("alexandria:data"));
 }

@@ -4,7 +4,7 @@ import { loadBooks, updateBookDetails } from "@/lib/application-store";
 import { listApplications, markApplicationAttempted, rescheduleApplication, updateOutcome, type KnowledgeApplication } from "@/lib/apply-store";
 import { getHighlightsForSource } from "@/lib/library-notes-store";
 import { DAILY_TASKS, advanceDailyTask, commitDailyTask, getDailyWorkflow, ensureDailyWorkflow, listDailyWorkflows, readingTaskStatus, saveDailyDraft } from "@/lib/daily-book-workflow";
-import { listCommitments, londonDay, startCommitment } from "@/lib/reading-execution";
+import { bookPercent, listCommitments, londonDay, startPercentageCommitment, startCommitment } from "@/lib/reading-execution";
 import { VoiceBookSetup } from "@/components/voice-book-setup";
 import { DailyReadingTally } from "@/components/daily-reading-tally";
 import { AIFeedbackPanel } from "@/components/views/academy-views";
@@ -87,7 +87,11 @@ export function DailyBookWorkflow({ sourceId }: { sourceId?: string } = {}) {
         <h3 className="top-gap">{DAILY_TASKS[workflow.step]}</h3>
         {workflow.step === 0 && due.map(application => <ApplicationOutcomeTask key={application.id} application={application} />)}
         {workflow.step === 1 && !committed && <>
-          {!plan && day === today && <VoiceBookSetup key={id} book={book} />}
+          {!plan && day === today && book.progressMode !== "percentage" && <VoiceBookSetup key={`voice-${id}`} book={book} />}
+          {!plan && day === today && book.progressMode === "percentage" && <button className="small-btn primary top-gap" onClick={() => {
+            try { if (active && active.bookId !== book.id) throw new Error("Finish the existing weekly commitment first. Its deadline is unchanged."); startPercentageCommitment(book.id, bookPercent(book)); setMessage("Percentage commitment started. Log today's progress below."); }
+            catch(error) { setMessage(error instanceof Error ? error.message : "Could not begin commitment."); }
+          }}>Begin seven-day percentage commitment →</button>}
           {!plan && day === today && book.progressMode !== "percentage" && <form className="form-grid top-gap" onSubmit={event => {
             event.preventDefault(); const count = Number(total || (book.totalPages > 1 ? book.totalPages : ""));
             try {
@@ -97,7 +101,7 @@ export function DailyBookWorkflow({ sourceId }: { sourceId?: string } = {}) {
           }}><label>Total pages<input required type="number" min="2" value={total || (book.totalPages > 1 ? book.totalPages : "")} onChange={event => setTotal(event.target.value)} /></label><button className="small-btn primary">Begin seven-day commitment →</button></form>}
           {(book.totalPages > 1 || book.progressMode === "percentage") && day === today && !book.completed && <DailyReadingTally key={id} sourceId={id} />}
           {(book.totalPages > 1 || book.progressMode === "percentage") && day === today && book.completed && !reading.ready && <p className="meta">This book's reading is finished. Start your next book for today's reading sequence.</p>}
-          <p className="saved-note top-gap">{Number(reading.pages.toFixed(2))} / {Number(reading.quota.toFixed(2))} {plan?.unit === "percentage" ? "percentage points" : "pages"} recorded · {reading.reason}</p>
+          <p className="saved-note top-gap">{Number(reading.pages.toFixed(2))} / {Number(reading.quota.toFixed(2))} {book.progressMode === "percentage" ? "percentage points" : "pages"} recorded · {reading.reason}</p>
           {day !== today && <p className="meta">This is a saved earlier session. Reading credit uses the original dated logs; today's pages count toward today.</p>}
         </>}
         {!committed && FIELDS[workflow.step] && <form className="form-grid top-gap" onSubmit={event => { event.preventDefault(); act("commit"); }}>

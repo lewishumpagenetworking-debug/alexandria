@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { loadBooks, loadLogs, saveBooks } from "@/lib/application-store";
-import { dailyQuota, logCredit, progressLabel, executionStatus, listCommitments, startCommitment, londonDay, shiftDay } from "@/lib/reading-execution";
+import { bookPercent, startPercentageCommitment, dailyQuota, logCredit, progressLabel, executionStatus, listCommitments, startCommitment, londonDay, shiftDay } from "@/lib/reading-execution";
 import { BookMetaPage } from "@/components/book-meta-page";
 
 export function WeeklyReading() {
@@ -56,15 +56,16 @@ export function WeeklyReading() {
       <button className="small-btn top-gap" onClick={() => setMetaId(book.id)}>Open book meta page →</button>
     </> : <form className="reading-tally-form top-gap" onSubmit={event => {
       event.preventDefault(); if (!selectedBook) return;
+      if (selectedBook.progressMode === "percentage") { startPercentageCommitment(selectedId, bookPercent(selectedBook)); setMessage(""); return; }
       const count = Number(total || (selectedBook.totalPages > 1 ? selectedBook.totalPages : ""));
       if (!Number.isInteger(count) || count < 1 || count <= selectedBook.currentPage) { setMessage("Enter the actual total pages, greater than the current page."); return; }
       const next = books.map(b => b.id === selectedId ? { ...b, totalPages: count } : b);
       saveBooks(next); startCommitment(selectedId, count); setMessage(""); setTotal("");
     }}>
       <label>This week’s book<select value={selectedId} onChange={event => { setBookId(event.target.value); setTotal(""); }}>{candidates.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}</select></label>
-      <label>Total pages<input required type="number" min="1" step="1" value={total || (selectedBook && selectedBook.totalPages > 1 ? selectedBook.totalPages : "")} onChange={event => setTotal(event.target.value)} /></label>
+      {selectedBook?.progressMode === "percentage" ? <p className="meta">Voice Dream · 0–100% · 100 ÷ 7 ≈ 14.29 percentage points per day.</p> : <label>Total pages<input required type="number" min="1" step="1" value={total || (selectedBook && selectedBook.totalPages > 1 ? selectedBook.totalPages : "")} onChange={event => setTotal(event.target.value)} /></label>}
       <button className="small-btn primary" disabled={!selectedBook}>Commit to seven days →</button>
-      <p className="meta">{candidates.length ? "The deadline starts today. Total pages and start date are fixed for this commitment." : "Use Start Book in the reading tally below to begin."}</p>
+      <p className="meta">{candidates.length ? "The deadline starts today. The seven-day completion target and start date stay fixed." : "Use Start Book in the reading tally below to begin."}</p>
     </form>}
     {message && <p role="status" className="saved-note">{message}</p>}
     {plans.length > 0 && <details className="top-gap"><summary>Commitment history & book meta pages</summary><div className="list">{plans.map(plan => { const b = books.find(item => item.id === plan.bookId); if (!b) return null; const s = executionStatus(plan, b, logs);  return <div className="list-item" key={plan.bookId}><strong>{b.title}</strong><span>{plan.startDate} → {s.deadline} · {progressLabel(b)} · {s.finished ? b.readingFinishedAt ? londonDay(new Date(b.readingFinishedAt)) <= s.deadline ? "Finished on time" : "Finished late" : "Reading finished; completion timing unverified" : s.overdue ? "Deadline missed" : "In progress"}</span><button className="small-btn" onClick={() => setMetaId(b.id)}>Book meta page</button><details><summary>Daily evidence</summary>{Array.from({ length: 7 }, (_, index) => {

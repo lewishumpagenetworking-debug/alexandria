@@ -20,7 +20,7 @@ export function DailyReadingTally({ sourceId }: { sourceId?: string } = {}) {
   const [value, setValue] = useState("");
   const [minutes, setMinutes] = useState("");
   const [message, setMessage] = useState("");
-  const [method, setMethod] = useState<ReadingMethod>("reading");
+  const [method, setMethod] = useState<ReadingMethod>(sourceId && loadBooks().find(b => b.id === sourceId)?.progressMode === "percentage" ? "listening" : "reading");
   const [format, setFormat] = useState<"physical" | "kindle" | "pdf">("physical");
   const [voiceWpm, setVoiceWpm] = useState("150");
   const [audioSpeed, setAudioSpeed] = useState("1");
@@ -44,7 +44,8 @@ export function DailyReadingTally({ sourceId }: { sourceId?: string } = {}) {
   const effectiveMode = book?.progressMode === "percentage" ? "percentage" : mode;
   const percentageMode = effectiveMode === "percentage";
   const effectiveWpm = Number(voiceWpm);
-  useEffect(() => { setVoiceWpm(String(book?.voiceWpm ?? 150)); setValue(""); }, [selectedId]);
+  useEffect(() => { setVoiceWpm(String(book?.voiceWpm ?? 150)); }, [selectedId, book?.voiceWpm]);
+  useEffect(() => { setMethod(book?.progressMode === "percentage" ? "listening" : "reading"); setMode("current"); setValue(""); }, [selectedId, book?.progressMode]);
   const percentToday = logs.filter(log => log.bookId === selectedId && log.createdAt && londonDay(new Date(log.createdAt)) === londonDay()).reduce((sum, log) => sum + (log.progressPercent ?? (book && book.totalPages > 1 ? log.pages / book.totalPages * 100 : 0)), 0);
   const dailyMinutes = book ? estimateVoiceMinutes(book, 100 / 7, effectiveWpm) : undefined;
   const remainingMinutes = book ? estimateVoiceMinutes(book, 100 - bookPercent(book), effectiveWpm) : undefined;
@@ -91,7 +92,7 @@ export function DailyReadingTally({ sourceId }: { sourceId?: string } = {}) {
       <label>Input type
         <select value={effectiveMode} onChange={(event) => { setMode(event.target.value as typeof mode); setValue(""); }}>
           {book?.progressMode !== "percentage" && <><option value="current">Current page</option><option value="pages">Pages read today</option></>}
-          <option value="percentage">Current percentage (voice reader)</option>
+          <option value="percentage">Current percentage (Voice Dream)</option>
         </select>
       </label>
       {(percentageMode || method !== "listening") && <label>{percentageMode ? "Percentage now" : mode === "current" ? "Page now" : "Pages read"}
