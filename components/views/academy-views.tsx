@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { agoraScenarios, forumChallenges, interrogationQuestions } from "@/data/mock-data";
+import { BOOK_CATEGORIES, categoryLens, categoryQuestions, categoryStages, sourceCategory, refCategory, type BookCategory } from "@/lib/book-categories";
+import { agoraScenarios, forumChallenges } from "@/data/mock-data";
 import { PageHeader, Rule } from "@/components/page-header";
 import { SourceReference } from "@/components/source-reference";
 import { loadBooks } from "@/lib/application-store";
@@ -97,7 +98,7 @@ const SOCRATIC_HELP = [
 ] as const;
 
 export function InterrogationView({ passage: passageOverride, onComplete, draftKey, sourceRef, onSaveForLater }: {
-  passage?: { text: string; source: string };
+  passage?: { text: string; source: string; sourceId?: string; category?: BookCategory };
   onComplete: (result: InterrogationResult) => void;
   draftKey?: string;
   sourceRef?: SourceRef;
@@ -109,14 +110,14 @@ export function InterrogationView({ passage: passageOverride, onComplete, draftK
   const [responses, setResponses] = useState<string[]>(() => Array.isArray(existingDraft?.state.responses) ? existingDraft!.state.responses as string[] : []);
   const [complete, setComplete] = useState(() => Boolean(existingDraft?.state.complete ?? false));
   const [helpOpen, setHelpOpen] = useState(false);
-  const [passage, setPassage] = useState(passageOverride ?? { text: "Problems are inevitable. Problems are soluble.", source: "The Beginning of Infinity" });
+  const [passage, setPassage] = useState<{ text: string; source: string; sourceId?: string; category?: BookCategory }>(passageOverride ?? { text: "Problems are inevitable. Problems are soluble.", source: "The Beginning of Infinity" });
 
   useEffect(() => {
     if (passageOverride) { setPassage(passageOverride); return; }
     const books = loadBooks();
     const latestBookWithHighlight = [...books].reverse().find((book) => book.highlights.length);
     if (latestBookWithHighlight) {
-      setPassage({ text: latestBookWithHighlight.highlights[latestBookWithHighlight.highlights.length - 1], source: latestBookWithHighlight.title });
+      setPassage({ text: latestBookWithHighlight.highlights[latestBookWithHighlight.highlights.length - 1], source: latestBookWithHighlight.title, sourceId: latestBookWithHighlight.id, category: latestBookWithHighlight.category });
       return;
     }
     const capture = listCaptures().find((item) => item.type === "Book highlight" || item.type === "Thought" || item.type === "Question");
@@ -133,6 +134,9 @@ export function InterrogationView({ passage: passageOverride, onComplete, draftK
       state: { index, answer, responses, complete },
     });
   }, [draftKey, sourceRef, index, answer, responses, complete]);
+
+  const category = passage.category ?? (sourceRef ? refCategory(sourceRef) : sourceCategory(passage.sourceId, passage.source));
+  const interrogationQuestions = categoryQuestions(category).map(prompt => ({ prompt }));
 
   function saveForLater() {
     if (draftKey) {
@@ -156,7 +160,7 @@ export function InterrogationView({ passage: passageOverride, onComplete, draftK
 
   return <section className="view active"><div className="content"><PageHeader eyebrow="Active recall · Socratic examination" title="Interrogation Chamber" intro="Your interpretation stays hidden until you answer. Speak from memory. Precision is more valuable than fluency." />
     <div className="manuscript"><div className="kicker">Passage under examination · {passage.source}</div><blockquote>“{passage.text}”</blockquote><p>Your most recent captured idea is examined before Alexandria supplies interpretation.</p></div>
-    {complete ? <article className="card completion"><div className="seal">A</div><div><div className="kicker">Examination complete</div><h2>The thought has survived seven questions.</h2><p className="meta">Your reconstruction is preserved locally. The next step is to test its boundary conditions in action.</p><AIFeedbackPanel context={`Passage: "${passage.text}" (${passage.source})`} instruction="Assess these seven Socratic reconstruction answers for rigor, precision, and whether they reveal genuine understanding versus borrowed language." userResponse={responses.map((response, index) => `${index + 1}. ${interrogationQuestions[index].prompt}\n${response}`).join("\n\n")} /><button className="small-btn primary top-gap" onClick={() => { if (draftKey) removeLearningDraft(draftKey, sourceRef); onComplete({ exerciseType: "interrogation", passageText: passage.text, passageSource: passage.source, responses }); }}>Continue to the next step →</button></div></article> : <div className="chamber"><article className="card prompt-panel"><SourceReference label={passage.source} text={passage.text} note="Use this exact passage as the basis for your answer." /><div className="prompt-number">{String(index + 1).padStart(2, "0")}</div><div className="kicker">Question {index + 1} of {interrogationQuestions.length}</div><h2>{interrogationQuestions[index].prompt}</h2>
+    {complete ? <article className="card completion"><div className="seal">A</div><div><div className="kicker">Examination complete</div><h2>The thought has survived seven questions.</h2><p className="meta">Your reconstruction is preserved locally. The next step is to test its boundary conditions in action.</p><AIFeedbackPanel context={`Passage: "${passage.text}" (${passage.source}); ${categoryLens(category)}`} instruction="Assess these seven Socratic reconstruction answers for rigor, precision, and whether they reveal genuine understanding versus borrowed language." userResponse={responses.map((response, index) => `${index + 1}. ${interrogationQuestions[index].prompt}\n${response}`).join("\n\n")} /><button className="small-btn primary top-gap" onClick={() => { if (draftKey) removeLearningDraft(draftKey, sourceRef); onComplete({ exerciseType: "interrogation", passageText: passage.text, passageSource: passage.source, responses }); }}>Continue to the next step →</button></div></article> : <div className="chamber"><article className="card prompt-panel"><SourceReference label={passage.source} text={passage.text} note="Use this exact passage as the basis for your answer." /><p className="meta">{BOOK_CATEGORIES[category]} · Socratic examination</p><div className="prompt-number">{String(index + 1).padStart(2, "0")}</div><div className="kicker">Question {index + 1} of {interrogationQuestions.length}</div><h2>{interrogationQuestions[index].prompt}</h2>
       <button type="button" className="question-help-toggle" onClick={() => setHelpOpen((open) => !open)}>What is this asking?</button>
       {helpOpen && <div className="question-help">
         <strong>In simple terms</strong><p>{SOCRATIC_HELP[index].simple}</p>
@@ -172,24 +176,27 @@ export const principleStages = [
   ["Statement", "What is actually being claimed?"], ["Assumptions", "What must be true for this to hold? What is merely assumed?"], ["Observations", "What is directly observed, without interpretation?"], ["Fundamental truths", "What remains irreducible?"], ["Reduction", "What can be removed without destroying the claim?"], ["Reconstruction", "Starting only from the fundamentals, what conclusion would you build?"], ["Boundary conditions", "Where does this stop being true or useful?"], ["Application", "What changes in tomorrow’s decision?"],
 ] as const;
 
-export type FirstPrinciplesResult = { exerciseType: "first-principles"; values: Record<string, string> };
+export type FirstPrinciplesResult = { exerciseType: "first-principles"; category?: BookCategory; values: Record<string, string> };
 
-export function FirstPrinciplesView({ stage, priorWork, onComplete }: {
+export function FirstPrinciplesView({ stage, priorWork, category: suppliedCategory, onComplete }: {
   stage: "reduce" | "rebuild";
+  category?: BookCategory;
   priorWork?: { label: string; text: string; referenceText?: string; referenceLabel?: string };
   onComplete: (result: FirstPrinciplesResult) => void;
 }) {
+  const category = suppliedCategory ?? sourceCategory(undefined, priorWork?.referenceLabel || priorWork?.label);
+  const stages = categoryStages(category);
   const [values, setValues] = useState<Record<string, string>>({});
   function update(label: string, value: string) { setValues((current) => ({ ...current, [label]: value })); }
   const complete = Object.values(values).filter((value) => value.trim()).length;
-  const done = complete === principleStages.length;
+  const done = complete === stages.length;
 
   return <section className="view active"><div className="content"><PageHeader eyebrow={stage === "reduce" ? "Reduction" : "Reduction · Reconstruction"} title="First Principles" intro={stage === "reduce" ? "Strip a claim of borrowed language. Separate observation from assumption before anything is rebuilt." : "Starting only from what you established last time, rebuild the conclusion from scratch."} />
     {priorWork && <div className="manuscript"><div className="kicker">Carried forward · {priorWork.label}</div><blockquote>“{priorWork.text}”</blockquote><p>Rebuild without leaning on this phrasing — treat it as a fact to reconstruct from, not an answer to repeat.</p></div>}
-    <div className="principles-status"><span>{complete} of {principleStages.length} stages articulated</span></div>
-    <div className="principles-workbench">{principleStages.map(([label, prompt], index) => <article className={`principle-stage${values[label]?.trim() ? " filled" : ""}`} key={label}>{priorWork && <SourceReference label={priorWork.referenceLabel || priorWork.label} text={priorWork.referenceText || priorWork.text} note={priorWork.text !== (priorWork.referenceText || priorWork.text) ? `Carried reasoning: ${priorWork.text}` : "Answer against this source, not from memory of the earlier screen."} />}<div className="stage-number">{String(index + 1).padStart(2, "0")}</div><div><div className="kicker">{label}</div><h3>{prompt}</h3><textarea value={values[label] || ""} onChange={(event) => update(label, event.target.value)} placeholder="Write only what you can defend…" /></div></article>)}</div>
-    {done && <AIFeedbackPanel context={priorWork ? `Rebuilding from: "${priorWork.text}"` : "A first-principles reduction, stage by stage."} instruction="Assess whether each stage genuinely follows from the fundamentals rather than restating the original claim in different words." userResponse={principleStages.map(([label]) => `${label}: ${values[label] || "(blank)"}`).join("\n")} />}
-    <div className="mic-row top-gap"><span className="voice-note">{done ? "All stages articulated." : `${principleStages.length - complete} stages remaining before you can continue.`}</span><button className="small-btn primary" disabled={!done} onClick={() => onComplete({ exerciseType: "first-principles", values })}>Continue to the next step →</button></div>
+    <p className="meta">{BOOK_CATEGORIES[category]} · {categoryLens(category)}</p><div className="principles-status"><span>{complete} of {stages.length} stages articulated</span></div>
+    <div className="principles-workbench">{stages.map(([label, prompt], index) => <article className={`principle-stage${values[label]?.trim() ? " filled" : ""}`} key={label}>{priorWork && <SourceReference label={priorWork.referenceLabel || priorWork.label} text={priorWork.referenceText || priorWork.text} note={priorWork.text !== (priorWork.referenceText || priorWork.text) ? `Carried reasoning: ${priorWork.text}` : "Answer against this source, not from memory of the earlier screen."} />}<div className="stage-number">{String(index + 1).padStart(2, "0")}</div><div><div className="kicker">{label}</div><h3>{prompt}</h3><textarea value={values[label] || ""} onChange={(event) => update(label, event.target.value)} placeholder="Write only what you can defend…" /></div></article>)}</div>
+    {done && <AIFeedbackPanel context={`Source: ${priorWork?.referenceText || priorWork?.text || "No passage supplied"}; carried reasoning: ${priorWork?.text || ""}; ${categoryLens(category)}`} instruction="Assess whether each stage genuinely follows from the fundamentals rather than restating the original claim in different words." userResponse={stages.map(([label]) => `${label}: ${values[label] || "(blank)"}`).join("\n")} />}
+    <div className="mic-row top-gap"><span className="voice-note">{done ? "All stages articulated." : `${stages.length - complete} stages remaining before you can continue.`}</span><button className="small-btn primary" disabled={!done} onClick={() => onComplete({ exerciseType: "first-principles", category, values })}>Continue to the next step →</button></div>
   </div></section>;
 }
 
@@ -197,6 +204,8 @@ export type AgoraResult = { exerciseType: "agora"; scenario: string; durationSec
 
 export interface BookStudyContext {
   sourceTitle: string;
+  sourceId?: string;
+  category?: BookCategory;
   anchorText: string;
   location?: string;
   interpretation?: string;
@@ -206,9 +215,10 @@ export interface BookStudyContext {
 }
 
 export function AgoraView({ onComplete, studyContext }: { onComplete: (result: AgoraResult) => void; studyContext?: BookStudyContext }) {
+  const category = studyContext?.category ?? sourceCategory(studyContext?.sourceId, studyContext?.sourceTitle);
   const scenario = useMemo(() => studyContext
-    ? `Apply the idea you have been developing from ${studyContext.sourceTitle} to a concrete decision. Use the claim below, decide whether it really applies, state what evidence would support it, and name what would make you reject it.\n\n"${studyContext.reconstruction || studyContext.principle || studyContext.anchorText}"`
-    : agoraScenarios[listAgoraSessions().length % agoraScenarios.length], [studyContext]);
+    ? `Apply the idea you have been developing from ${studyContext.sourceTitle} to a concrete decision. ${categoryQuestions(category)[6]} Use the claim below, decide whether it really applies, state what evidence would support it, and name what would make you reject it.\n\n"${studyContext.reconstruction || studyContext.principle || studyContext.anchorText}"`
+    : agoraScenarios[listAgoraSessions().length % agoraScenarios.length], [studyContext, category]);
   const [response, setResponse] = useState("");
   const [feedback, setFeedback] = useState(false);
   const clock = useCountdown(120);
@@ -222,7 +232,7 @@ export function AgoraView({ onComplete, studyContext }: { onComplete: (result: A
         <article className="diag"><strong>Action check</strong><span>What concrete decision changes if your reasoning is correct?</span></article>
       </> : <><article className="diag"><strong>Relevant principles retrieved</strong><span>Optionality; preserve authority without defending a weak assumption.</span></article><article className="diag"><strong>Assumptions made</strong><span>You assume public concession necessarily reduces confidence.</span></article><article className="diag"><strong>Counterarguments missed</strong><span>Visible correction may strengthen trust when the team values truth over theatre.</span></article><article className="diag"><strong>Alternative interpretation</strong><span>The colleague may be testing whether dissent is genuinely safe.</span></article><article className="diag"><strong>Application quality</strong><span>Your next action is concrete; add the evidence that would make you reverse it.</span></article></>}</div>
       {!studyContext && <LimitationNote>This diagnostic is a fixed self-assessment template, not AI-generated — add a key in Settings for real AI feedback below.</LimitationNote>}
-      <AIFeedbackPanel context={`Scenario: ${scenario}`} instruction="Assess this response for how well it retrieves the relevant principle, names its own assumptions, and commits to a concrete, reversible next action." userResponse={response} />
+      <AIFeedbackPanel context={`Scenario: ${scenario}; source: ${studyContext?.anchorText || ""}; ${categoryLens(category)}`} instruction="Assess this response for how well it retrieves the relevant principle, names its own assumptions, and commits to a concrete, reversible next action." userResponse={response} />
       <button className="small-btn primary top-gap" onClick={() => onComplete({ exerciseType: "agora", scenario, durationSeconds: clock.duration, response })}>Continue to the next step →</button></>}
   </div></section>;
 }
@@ -232,11 +242,12 @@ const feedbackCategories = ["Clarity", "Structure", "Reasoning", "Examples", "An
 export type ForumResult = { exerciseType: "forum"; challenge: string; audience: string; format: string; response: string };
 
 export function ForumView({ onComplete, studyContext }: { onComplete: (result: ForumResult) => void; studyContext?: BookStudyContext }) {
+  const category = studyContext?.category ?? sourceCategory(studyContext?.sourceId, studyContext?.sourceTitle);
   const seed = useMemo(() => studyContext ? {
-    challenge: `Explain the idea you have developed from ${studyContext.sourceTitle} to someone who has not read the book. State the claim, explain why it may be true, name one boundary or objection, and show one practical application.`,
+    challenge: `Explain the idea you have developed from ${studyContext.sourceTitle} to someone who has not read the book. State the claim, explain why it may be true, name one boundary or objection, and show one practical application. ${categoryQuestions(category)[5]} ${categoryQuestions(category)[6]}`,
     audience: "Intelligent non-expert",
     format: "Explanation",
-  } : forumChallenges[listForumSessions().length % forumChallenges.length], [studyContext]);
+  } : forumChallenges[listForumSessions().length % forumChallenges.length], [studyContext, category]);
   const [answer, setAnswer] = useState("");
   const [audience, setAudience] = useState(seed.audience);
   const [format, setFormat] = useState(seed.format);
@@ -253,7 +264,7 @@ export function ForumView({ onComplete, studyContext }: { onComplete: (result: F
         <div className="diag"><strong>Reasoning</strong><span>Did you explain why the conclusion follows?</span></div>
         <div className="diag"><strong>Boundary</strong><span>Did you state where the idea may fail or require qualification?</span></div>
         <div className="diag"><strong>Application</strong><span>Did you give a concrete use rather than an abstract example?</span></div>
-      </> : feedbackCategories.map((category) => <div className="diag" key={category}><strong>{category}</strong><span>{observations[category as keyof typeof observations]}</span></div>)}</div>{!studyContext && <LimitationNote>Feedback shown here is a fixed diagnostic template, not AI-generated — add a key in Settings for real AI feedback below.</LimitationNote>}<AIFeedbackPanel context={`Challenge: ${seed.challenge} · Audience: ${audience} · Format: ${format}`} instruction="Assess clarity, structure, and whether the explanation would actually land with the stated audience." userResponse={answer} /><button className="small-btn primary top-gap" onClick={() => onComplete({ exerciseType: "forum", challenge: seed.challenge, audience, format, response: answer })}>Continue to the next step →</button></> : <div className="awaiting-feedback"><div className="seal">F</div><h3>The Forum listens before it judges.</h3><p className="meta">Submit a response to reveal specific evidence across ten dimensions.</p></div>}</article>
+      </> : feedbackCategories.map((category) => <div className="diag" key={category}><strong>{category}</strong><span>{observations[category as keyof typeof observations]}</span></div>)}</div>{!studyContext && <LimitationNote>Feedback shown here is a fixed diagnostic template, not AI-generated — add a key in Settings for real AI feedback below.</LimitationNote>}<AIFeedbackPanel context={`Challenge: ${seed.challenge} · Audience: ${audience} · Format: ${format}; source: ${studyContext?.anchorText || ""}; ${categoryLens(category)}`} instruction="Assess clarity, structure, and whether the explanation would actually land with the stated audience." userResponse={answer} /><button className="small-btn primary top-gap" onClick={() => onComplete({ exerciseType: "forum", challenge: seed.challenge, audience, format, response: answer })}>Continue to the next step →</button></> : <div className="awaiting-feedback"><div className="seal">F</div><h3>The Forum listens before it judges.</h3><p className="meta">Submit a response to reveal specific evidence across ten dimensions.</p></div>}</article>
     </div></div></section>;
 }
 

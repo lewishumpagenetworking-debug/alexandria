@@ -1,3 +1,4 @@
+import { sourceCategory, categoryQuestions, categoryLens } from "./book-categories";
 import { getKnowledgeUnitCard, listKnowledgeUnits, recordKnowledgeAttempt, recordKnowledgeUnitSurfaced } from "@/lib/knowledge-unit-store";
 import type { KnowledgeUnit } from "@/models/domain";
 import { recordKnowledgeEngagement, recordRetrievalScore, type RetrievalCard, type RetrievalQuality } from "@/lib/retrieval-store";
@@ -100,6 +101,14 @@ export function buildKnowledgeChallengeForUnit(unit: KnowledgeUnit, card: Retrie
   const difficulty = request.difficulty ?? 1;
   const type = chooseType(unit, request);
   const body = buildPrompt(unit, type, difficulty);
+  const category = sourceCategory(unit.sourceId, unit.sourceTitle);
+  if (category !== "general") {
+    const questions = categoryQuestions(category);
+    body.prompt = type === "principle"
+      ? `Extract a reusable ${category} principle from this passage. ${questions[4]} State the principle in your own words and explain its limits.`
+      : questions[type === "application" ? 6 : type === "boundary" ? 5 : 0];
+    body.guidance = `${body.guidance} ${categoryLens(category)}`;
+  }
   if (request.recordSurface !== false) recordKnowledgeUnitSurfaced(unit.id);
   return {
     id: `challenge:${unit.id}:${type}`,

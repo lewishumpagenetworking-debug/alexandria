@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { BOOK_CATEGORIES, categoryLens, type BookCategory } from "@/lib/book-categories";
 import { halls } from "@/data/mock-data";
-import { loadBooks, saveBooks, uid, type StoredBook } from "@/lib/application-store";
+import { loadBooks, saveBooks, updateBookDetails, uid, type StoredBook } from "@/lib/application-store";
 import { commitRows, xlsxImporter, type ImportSummary } from "@/services/import/xlsx-importer";
 import type { ImportPreview } from "@/services/import/spreadsheet-import";
 
@@ -40,7 +41,7 @@ Rules:
 export function ImportNotesWorkspace({ onBack, onComplete, initialSourceId = "" }: { onBack: () => void; onComplete: () => void; initialSourceId?: string }) {
   const [books, setBooks] = useState(() => loadBooks());
   const [selectedId, setSelectedId] = useState(initialSourceId);
-  const [newBook, setNewBook] = useState({ title: "", author: "" });
+  const [newBook, setNewBook] = useState({ title: "", author: "", category: "general" as BookCategory });
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [error, setError] = useState("");
@@ -53,6 +54,7 @@ export function ImportNotesWorkspace({ onBack, onComplete, initialSourceId = "" 
     if (!newBook.title.trim()) return;
     const book: StoredBook = {
       id: uid("book"),
+      category: newBook.category,
       title: newBook.title.trim(),
       author: newBook.author.trim() || "Unknown author",
       currentPage: 0,
@@ -66,7 +68,7 @@ export function ImportNotesWorkspace({ onBack, onComplete, initialSourceId = "" 
     saveBooks(next);
     setBooks(next);
     setSelectedId(book.id);
-    setNewBook({ title: "", author: "" });
+    setNewBook({ title: "", author: "", category: "general" as BookCategory });
   }
 
   async function handleFile(file?: File) {
@@ -93,7 +95,7 @@ export function ImportNotesWorkspace({ onBack, onComplete, initialSourceId = "" 
   }
 
   async function copyPrompt() {
-    await navigator.clipboard.writeText(AI_PROMPT);
+    await navigator.clipboard.writeText(`${AI_PROMPT}\n\nBook category guidance: ${categoryLens(selected?.category ?? newBook.category)}`);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   }
@@ -121,8 +123,10 @@ export function ImportNotesWorkspace({ onBack, onComplete, initialSourceId = "" 
         <div className="form-grid compact-form">
           <label>Title<input value={newBook.title} onChange={(e) => setNewBook({ ...newBook, title: e.target.value })} placeholder="Book or document title" /></label>
           <label>Author / creator<input value={newBook.author} onChange={(e) => setNewBook({ ...newBook, author: e.target.value })} placeholder="Author" /></label>
+          <label>Book category<select value={newBook.category} onChange={e => setNewBook({ ...newBook, category: e.target.value as BookCategory })}>{Object.entries(BOOK_CATEGORIES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         </div>
         <button type="button" className="small-btn" onClick={createBook} disabled={!newBook.title.trim()}>＋ Add source</button>
+        {selected && <label className="import-label">Selected book category<select value={selected.category ?? "general"} onChange={e => { updateBookDetails(selected.id, { title: selected.title, author: selected.author, category: e.target.value as BookCategory }); setBooks(loadBooks()); }}>{Object.entries(BOOK_CATEGORIES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
         {selected && <p className="saved-note top-gap">Selected: <strong>{selected.title}</strong> by {selected.author}</p>}
       </div>
     </div>

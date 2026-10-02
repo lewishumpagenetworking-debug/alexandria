@@ -1,4 +1,5 @@
 "use client";
+import { categoryLens, categoryQuestions } from "@/lib/book-categories";
 import { useEffect, useRef, useState } from "react";
 import { loadBooks, updateBookDetails } from "@/lib/application-store";
 import { listApplications, markApplicationAttempted, rescheduleApplication, updateOutcome, type KnowledgeApplication } from "@/lib/apply-store";
@@ -104,13 +105,14 @@ export function DailyBookWorkflow({ sourceId }: { sourceId?: string } = {}) {
           <p className="saved-note top-gap">{Number(reading.pages.toFixed(2))} / {Number(reading.quota.toFixed(2))} {book.progressMode === "percentage" ? "percentage points" : "pages"} recorded · {reading.reason}</p>
           {day !== today && <p className="meta">This is a saved earlier session. Reading credit uses the original dated logs; today's pages count toward today.</p>}
         </>}
+        {workflow.step > 1 && <p className="meta">{categoryQuestions(book.category ?? "general")[workflow.step === 4 ? 6 : workflow.step === 6 ? 5 : 0]}</p>}
         {!committed && FIELDS[workflow.step] && <form className="form-grid top-gap" onSubmit={event => { event.preventDefault(); act("commit"); }}>
           {FIELDS[workflow.step].map(([key, label, prompt]) => <label className="form-span" key={key}>{label}<p className="meta">{prompt}</p>{key === "reviewDate" ? <input required type="date" value={d[key] || ""} onChange={event => saveDailyDraft(id, day, key, event.target.value)} /> : key === "medium" ? <select required value={d[key] || ""} onChange={event => saveDailyDraft(id, day, key, event.target.value)}><option value="">Choose a medium</option><option>Written explanation</option><option>Explain aloud, then preserve a transcript</option></select> : <textarea required value={d[key] || ""} onChange={event => saveDailyDraft(id, day, key, event.target.value)} placeholder={prompt} />}</label>)}
           <button className="small-btn primary">Commit {DAILY_TASKS[workflow.step].toLowerCase()} →</button>
         </form>}
         {!committed && (workflow.step === 0 || workflow.step === 1) && <button className="small-btn primary top-gap" disabled={workflow.step === 1 && !reading.ready} onClick={() => act("commit")}>Complete {DAILY_TASKS[workflow.step].toLowerCase()} →</button>}
         {committed && <div className="top-gap" role="status"><p className="saved-note">✓ {DAILY_TASKS[workflow.step]} committed.</p>
-          {workflow.step === 5 && <><p className="meta">Check for unexplained terms, missing causal steps, weak examples and unsupported claims. Compare with the source before rewriting.</p><AIFeedbackPanel context={`Book: ${book.title}; location: ${d.location}; source evidence: ${d.evidence}; principle: ${d.principle}; boundaries: ${d.boundaries}`} instruction={`Give specific feedback on accuracy against the supplied source evidence, plain language, causal reasoning, examples and boundaries for audience ${d.audience} and purpose ${d.purpose}. Identify uncertainty. Do not invent source details or give a mastery score.`} userResponse={d.explanation} /></>}
+          {workflow.step === 5 && <><p className="meta">Check for unexplained terms, missing causal steps, weak examples and unsupported claims. Compare with the source before rewriting.</p><AIFeedbackPanel context={`Book: ${book.title}; location: ${d.location}; source evidence: ${d.evidence}; principle: ${d.principle}; boundaries: ${d.boundaries}; ${categoryLens(book.category ?? "general")}`} instruction={`Give specific feedback on accuracy against the supplied source evidence, plain language, causal reasoning, examples and boundaries for audience ${d.audience} and purpose ${d.purpose}. Identify uncertainty. Do not invent source details or give a mastery score.`} userResponse={d.explanation} /></>}
           <button className="small-btn primary top-gap" onClick={() => act("advance")}>{workflow.step === 6 || workflow.kind === "outcome-review" ? "Finish daily workflow →" : `Continue to ${DAILY_TASKS[workflow.step + 1].toLowerCase()} →`}</button>
         </div>}
       </>}

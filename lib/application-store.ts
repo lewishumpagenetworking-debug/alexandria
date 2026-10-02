@@ -1,7 +1,9 @@
+import type { BookCategory } from "./book-categories";
 export type StoredBook = {
   id: string;
   title: string;
   author: string;
+  category?: BookCategory;
   currentPage: number;
   totalPages: number;
   progressMode?: "pages" | "percentage";
@@ -74,12 +76,14 @@ export function uid(prefix: string) {
 }
 
 export type BookTrackingInput = {
+  category?: BookCategory;
   progressMode?: "pages" | "percentage";
   currentPercent?: number;
   voiceTotalMinutes?: number;
   voiceReferenceWpm?: number;
 };
 function validateVoiceDetails(input: BookTrackingInput) {
+  if (input.category !== undefined && !["general", "marketing", "business", "philosophy", "great-leaders", "science", "psychology"].includes(input.category)) throw new Error("Choose a valid book category.");
   if (input.currentPercent !== undefined && (!Number.isFinite(input.currentPercent) || input.currentPercent < 0 || input.currentPercent > 100)) throw new Error("Percentage must be between 0 and 100.");
   if (input.voiceTotalMinutes !== undefined && (!Number.isFinite(input.voiceTotalMinutes) || input.voiceTotalMinutes <= 0)) throw new Error("Full-book duration must be positive.");
   if (input.voiceReferenceWpm !== undefined && (!Number.isFinite(input.voiceReferenceWpm) || input.voiceReferenceWpm <= 0)) throw new Error("Voice speed must be a positive WPM value.");
@@ -93,7 +97,7 @@ export function createBook(input: { title: string; author?: string; totalPages?:
   if (!title) throw new Error("Enter a book title.");
   if (input.totalPages !== undefined && (!Number.isInteger(totalPages) || totalPages < 2)) throw new Error("Enter the actual total pages (at least 2).");
   if (!Number.isInteger(currentPage) || currentPage < 0 || currentPage >= totalPages) throw new Error("Starting page must be a whole number below the total pages.");
-  const book: StoredBook = { id: uid("book"), title, author: input.author?.trim() || "Unknown author", totalPages, currentPage, progressMode: input.progressMode ?? "pages", currentPercent: input.progressMode === "percentage" ? input.currentPercent ?? 0 : undefined, voiceTotalMinutes: input.voiceTotalMinutes, voiceReferenceWpm: input.voiceReferenceWpm, voiceWpm: input.voiceReferenceWpm, completed: false, highlights: [], principles: 0, lastRead: "Not logged yet" };
+  const book: StoredBook = { id: uid("book"), title, author: input.author?.trim() || "Unknown author", totalPages, currentPage, category: input.category ?? "general", progressMode: input.progressMode ?? "pages", currentPercent: input.progressMode === "percentage" ? input.currentPercent ?? 0 : undefined, voiceTotalMinutes: input.voiceTotalMinutes, voiceReferenceWpm: input.voiceReferenceWpm, voiceWpm: input.voiceReferenceWpm, completed: false, highlights: [], principles: 0, lastRead: "Not logged yet" };
   saveBooks([...loadBooks({ includeArchived: true, includeDeleted: true }), book]);
   window.dispatchEvent(new Event("alexandria:data"));
   return book;
@@ -120,7 +124,7 @@ export function updateBookDetails(id: string, input: { title: string; author: st
   const nextPage = mode === "pages" && book.progressMode === "percentage" ? Math.floor(totalPages * percent / 100) : book.currentPage;
   // The format can change, while the original seven-day deadline and evidence stay fixed.
   const nextPlans = plans.map(p => p.bookId !== id ? p : mode === "percentage" && p.unit !== "percentage" ? { ...p, pageTotal: p.totalPages, totalPages: 100, unit: "percentage" as const } : mode === "pages" && p.unit === "percentage" ? { ...p, totalPages, pageTotal: undefined, unit: undefined } : p);
-  saveBooks(books.map(item => item.id === id ? { ...item, title: input.title.trim(), author: input.author.trim() || "Unknown author", totalPages, progressMode: mode, currentPage: nextPage, currentPercent: mode === "percentage" || book.progressMode === "percentage" ? percent : item.currentPercent, voiceTotalMinutes: input.voiceTotalMinutes ?? item.voiceTotalMinutes, voiceReferenceWpm: input.voiceReferenceWpm ?? item.voiceReferenceWpm, voiceWpm: input.voiceReferenceWpm ?? item.voiceWpm } : item));
+  saveBooks(books.map(item => item.id === id ? { ...item, title: input.title.trim(), author: input.author.trim() || "Unknown author", totalPages, category: input.category ?? item.category ?? "general", progressMode: mode, currentPage: nextPage, currentPercent: mode === "percentage" || book.progressMode === "percentage" ? percent : item.currentPercent, voiceTotalMinutes: input.voiceTotalMinutes ?? item.voiceTotalMinutes, voiceReferenceWpm: input.voiceReferenceWpm ?? item.voiceReferenceWpm, voiceWpm: input.voiceReferenceWpm ?? item.voiceWpm } : item));
   if (plan) localStorage.setItem("alexandria-reading-commitments-v1", JSON.stringify(nextPlans));
   saveLogs(loadLogs().map(log => log.bookId === id ? { ...log, bookTitle: input.title.trim() } : log));
   window.dispatchEvent(new Event("alexandria:data"));

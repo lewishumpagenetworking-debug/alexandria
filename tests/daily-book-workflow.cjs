@@ -9,9 +9,9 @@ let cache = new Map();
 function load(file) {
   file=path.resolve(file);
   if(cache.has(file)) return cache.get(file);
-  const sandbox={exports:{}, localStorage, window:{dispatchEvent(){}},Event:class{},Intl,Date,crypto:require('node:crypto'), require:spec=>load(path.resolve(path.dirname(file),spec+'.ts'))};
+  const sandbox={exports:{}, localStorage, window:{dispatchEvent(){}},Event:class{},Intl,Date,crypto:require('node:crypto'), require:spec=>load(spec.startsWith('@/') ? path.resolve(spec.slice(2)+'.ts') : path.resolve(path.dirname(file),spec+'.ts'))};
   cache.set(file,sandbox.exports);
-  vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,sandbox);
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2017}}).outputText,sandbox);
   return sandbox.exports;
 }
 const store=load('lib/application-store.ts');
@@ -169,3 +169,43 @@ assert.throws(()=>store.updateBookDetails(selectable.id,{title:'Should not save'
 assert.equal(JSON.stringify(store.loadBooks()),beforeInvalid);
 assert.throws(()=>store.createBook({title:'Bad percentage',progressMode:'percentage',currentPercent:101}));
 console.log('Passed: create/edit format selection, percentage baseline, optional duration, switching both ways, unchanged deadlines/evidence, WPM edits and atomic invalid-input rejection.');
+
+const categories=load('lib/book-categories.ts');
+const marketing=store.createBook({title:'Same title',category:'marketing'});
+const business=store.createBook({title:'Same title',category:'business'});
+assert.equal(categories.sourceCategory(marketing.id,marketing.title),'marketing');
+assert.equal(categories.sourceCategory(business.id,business.title),'business');
+assert.equal(categories.sourceCategory(undefined,'Same title'),'general','Ambiguous titles must not select another book category');
+assert.equal(categories.sourceCategory('missing','Same title'),'general');
+assert.equal(store.createBook({title:'Uncategorised'}).category,'general');
+const beforeInvalidCategory=JSON.stringify(store.loadBooks());
+assert.throws(()=>store.updateBookDetails(marketing.id,{title:'Same title',author:'Author',category:'invalid'}));
+assert.equal(JSON.stringify(store.loadBooks()),beforeInvalidCategory);
+store.updateBookDetails(marketing.id,{title:'Same title',author:'Author',category:'philosophy'});
+assert.equal(categories.sourceCategory(marketing.id),'philosophy');
+for(const category of Object.keys(categories.BOOK_CATEGORIES)) {
+ assert.equal(categories.categoryQuestions(category).length,7);
+ assert.equal(categories.categoryStages(category).length,8);
+ assert.ok(categories.categoryLens(category).includes('Do not assume the claim is true'));
+}
+assert.ok(categories.categoryQuestions('marketing').join(' ').includes('conversion data'));
+assert.ok(categories.categoryQuestions('business').join(' ').includes('unit economics'));
+assert.ok(categories.categoryQuestions('philosophy').join(' ').includes('moral premise'));
+const engine=load('lib/sculptor-challenge-engine.ts');
+const unit={id:'category-test',sourceId:business.id,sourceTitle:business.title,quote:'Revenue does not equal profit.',alexandriaDiagnosis:'Stored evidence',principle:'Stored principle',boundaries:[],counterarguments:[]};
+for(const type of ['diagnosis','retrieval','principle','boundary','application']) {
+ const challenge=engine.buildKnowledgeChallengeForUnit(unit,{}, {allowedTypes:[type],recordSurface:false});
+ assert.ok(challenge.guidance.includes('Study area: Business'));
+ assert.ok(challenge.prompt.includes(type==='application'?'operating decision':type==='boundary'?'competitive response':type==='principle'?'reusable business principle':'value creation'));
+ assert.ok(['Stored evidence','Stored principle'].includes(challenge.expected),'Preserve stored source interpretation');
+}
+console.log('Passed: category persistence/edit validation, duplicate-title isolation, seven Socratic questions, eight first-principles stages and domain-specific review prompts with preserved source evidence.');
+
+const categoryHighlight=notes.addHighlight({sourceId:business.id,text:'Revenue does not equal profit.'});
+assert.equal(categories.refCategory({type:'highlight',id:categoryHighlight.id,label:'Same title'}),'business');
+const categoryPrinciple=notes.addPrinciple({sourceIds:[business.id],statement:'Protect margins.'});
+assert.equal(categories.refCategory({type:'principle',id:categoryPrinciple.id,label:'Principle'}),'business');
+const academy=load('lib/academy-store.ts');
+const categoryWork=academy.saveFirstPrinciplesWork({stage:'reduce',category:'marketing',values:{Reconstruction:'Customer belief drives the decision.'}});
+assert.equal(categories.refCategory({type:'principle',id:categoryWork.id,label:'First Principles · Reduce'}),'marketing');
+console.log('Passed: quote, principle and saved reconstruction retain their domain when revisited.');
