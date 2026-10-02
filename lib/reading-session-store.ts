@@ -29,7 +29,7 @@ export function recordReadingSession(input: {
     const error = validateReading(book, nextPage);
     if (error) throw new Error(error);
   }
-  const pages = listeningOnly ? 0 : nextPage - book.currentPage;
+  const pages = listeningOnly ? 0 : Number((nextPage - (book.currentPercent !== undefined ? book.currentPercent / 100 * book.totalPages : book.currentPage)).toFixed(8));
   const log: ReadingLog = { id: uid("log"), bookId: book.id, bookTitle: book.title, pages, minutes: input.minutes, method: input.method, format: listeningOnly ? "audiobook" : input.format, audioSpeed: input.method === "reading" ? undefined : input.audioSpeed, audioMinutes: input.method === "reading" ? undefined : input.minutes, listeningContext: input.method === "reading" ? undefined : input.listeningContext, comfortableSpeed: input.comfortableSpeed, trainingSpeed: input.trainingSpeed, date: new Date().toLocaleDateString("en-GB"), createdAt: new Date().toISOString() };
   if (!listeningOnly) saveBooks(books.map(item => item.id === book.id ? { ...item, currentPage: nextPage, currentPercent: undefined, lastRead: "Today" } : item));
   saveLogs([log, ...loadLogs()]);

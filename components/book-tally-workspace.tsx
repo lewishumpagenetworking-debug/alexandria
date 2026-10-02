@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createBook, loadBooks, loadLogs, saveBooks, setBookState, updateBookDetails, type StoredBook } from "@/lib/application-store";
-import { progressLabel, executionStatus, listCommitments, startCommitment } from "@/lib/reading-execution";
+import { bookPercent, startPercentageCommitment, progressLabel, executionStatus, listCommitments, startCommitment } from "@/lib/reading-execution";
 import { addHighlight, getHighlightsForSource } from "@/lib/library-notes-store";
 import { registerCard } from "@/lib/retrieval-store";
 import { ImportNotesWorkspace } from "@/components/import-notes-workspace";
@@ -10,7 +10,7 @@ import { DailyBookWorkflow } from "@/components/daily-book-workflow";
 import { BookMetaPage } from "@/components/book-meta-page";
 
 type Shelf = "books" | "archive" | "trash";
-const blank = () => ({ title: "", author: "", totalPages: "", currentPage: "0" });
+const blank = () => ({ title: "", author: "", totalPages: "", currentPage: "0", progressMode: "pages" as "pages" | "percentage", currentPercent: "0", hours: "", durationMinutes: "0", wpm: "150" });
 
 export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBookId = "" }: { onBack?: () => void; initiallyCreate?: boolean; initialBookId?: string } = {}) {
   const [books, setBooks] = useState(() => loadBooks({ includeArchived: true, includeDeleted: true }));
@@ -48,12 +48,14 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
   function save(event: React.FormEvent) {
     event.preventDefault();
     try {
-      if (editing && selected) updateBookDetails(selected.id, { title: form.title, author: form.author, totalPages: form.totalPages.trim() ? Number(form.totalPages) : undefined });
+      const voiceTotalMinutes = form.hours.trim() || Number(form.durationMinutes) ? Number(form.hours) * 60 + Number(form.durationMinutes) : undefined;
+      const tracking = { progressMode: form.progressMode, currentPercent: form.progressMode === "percentage" ? Number(form.currentPercent) : undefined, voiceTotalMinutes: form.progressMode === "percentage" ? voiceTotalMinutes : undefined, voiceReferenceWpm: form.progressMode === "percentage" ? Number(form.wpm) : undefined };
+      if (editing && selected) updateBookDetails(selected.id, { title: form.title, author: form.author, totalPages: form.totalPages.trim() ? Number(form.totalPages) : undefined, ...tracking });
       else {
-        const book = createBook({ title: form.title, author: form.author, totalPages: form.totalPages.trim() ? Number(form.totalPages) : undefined, currentPage: Number(form.currentPage) });
+        const book = createBook({ title: form.title, author: form.author, totalPages: form.totalPages.trim() ? Number(form.totalPages) : undefined, currentPage: form.progressMode === "pages" ? Number(form.currentPage) : 0, ...tracking });
         setShelf("books"); setSelectedId(book.id);
       }
-      setCreating(false); setEditing(false); setMessage("Book folder created. Start reading and add notes as you go.");
+      setCreating(false); setEditing(false); setMessage(editing ? "Book saved. Its tracking format is applied below." : "Book folder created. Start reading and add notes as you go.");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save this book."); }
   }
   function changeState(action: "archive" | "unarchive" | "delete" | "restore") {
@@ -65,18 +67,28 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
   return <article className="card book-tally-workspace" id={onBack || initialBookId ? undefined : "reading-books"}>
     {onBack && <button className="action-link back" onClick={onBack}>← Back to Library</button>}
     <div className="card-head"><div><div className="kicker">Reading tally · My books</div><h2>Your books, in their own folders.</h2></div><button className="small-btn primary" onClick={newBook}>＋ Start Book</button></div>
-    <p className="meta">Start with a title to create the folder. Add your page count, reading sessions and notes as you read. Import existing notes later if you choose.</p>
+    <p className="meta">Start with a title and choose physical pages or Voice Dream percentage tracking. Add reading sessions and notes as you read. Import existing notes later if you choose.</p>
     <div className="button-row top-gap" role="group" aria-label="Book shelves">
       {(["books", "archive", "trash"] as const).map(tab => <button key={tab} className={`small-btn${shelf === tab ? " primary" : ""}`} aria-pressed={shelf === tab} onClick={() => { setShelf(tab); setSelectedId(""); setCreating(false); setEditing(false); setDeleteId(""); setMessage(""); }}>{tab === "books" ? "My Books" : tab === "archive" ? "Archive" : "Trash"} ({books.filter(book => tab === "trash" ? book.deletedAt : tab === "archive" ? !book.deletedAt && book.archivedAt : !book.deletedAt && !book.archivedAt).length})</button>)}
     </div>
     {(creating || editing) && <form className="form-grid top-gap book-entry-form" onSubmit={save}>
       <label className="form-span">Enter a Book Title<input required autoFocus value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} placeholder="e.g. Napoleon: A Life" /></label>
-      <details className="form-span"><summary>{editing ? "Book details" : "Add details now (optional)"}</summary><div className="form-grid top-gap">
+      <label className="form-span">Reading format<select value={form.progressMode} onChange={event => {
+        const mode = event.target.value as "pages" | "percentage";
+        setForm({ ...form, progressMode: mode, currentPercent: editing && selected ? String(bookPercent(selected)) : form.totalPages && Number(form.totalPages) > 1 ? String(Number(form.currentPage) / Number(form.totalPages) * 100) : form.currentPercent });
+      }}><option value="pages">Physical book · pages</option><option value="percentage">Voice Dream · percentage (0–100%)</option></select></label>
       <label>Author <span className="optional">optional</span><input value={form.author} onChange={event => setForm({ ...form, author: event.target.value })} /></label>
-      <label>Total pages <span className="optional">can be added later</span><input type="number" min="2" step="1" disabled={editing && !!plan} value={form.totalPages} onChange={event => setForm({ ...form, totalPages: event.target.value })} /></label>
-      {!editing && <label>Starting page<input type="number" min="0" max={form.totalPages ? Math.max(0, Number(form.totalPages) - 1) : 0} step="1" value={form.currentPage} onChange={event => setForm({ ...form, currentPage: event.target.value })} /></label>}
-      <p className="meta form-span">{Number(form.totalPages) > 1 ? `${form.totalPages} ÷ 7 = ${Number((Number(form.totalPages) / 7).toFixed(2))} pages per day.` : "Add the page count when you are ready to set the seven-day target."} {editing && plan ? "Total pages are locked by the seven-day commitment." : !editing ? "The starting page is a baseline; it does not create a reading session." : "Log reading below to update your current page."}</p>
-      </div></details>
+      {form.progressMode === "percentage" ? <>
+        <label>{editing ? "Saved percentage" : "Starting percentage"}<input required type="number" min="0" max={editing ? "100" : "99.99"} step="any" disabled={editing && (!!plan || logs.some(log => log.bookId === selected?.id))} value={form.currentPercent} onChange={event => setForm({ ...form, currentPercent: event.target.value })} /></label>
+        <label>Full-book hours <span className="optional">can be added later</span><input type="number" min="0" step="1" value={form.hours} onChange={event => setForm({ ...form, hours: event.target.value })} /></label>
+        <label>Additional minutes<input type="number" min="0" max="59" step="any" value={form.durationMinutes} onChange={event => setForm({ ...form, durationMinutes: event.target.value })} /></label>
+        <label>WPM for this displayed duration<input required type="number" min="1" step="any" value={form.wpm} onChange={event => setForm({ ...form, wpm: event.target.value })} /></label>
+        <p className="meta form-span">Voice Dream format: 0% → 100%. Daily requirement: 100 ÷ 7 ≈ 14.29 percentage points. Enter the full-book duration displayed at this WPM, not time remaining. Changing session WPM adjusts estimated time, while the percentage target stays fixed. Starting progress is a baseline, not a reading session.</p>
+      </> : <>
+        <label>Total pages <span className="optional">can be added later</span><input type="number" min="2" step="1" disabled={editing && !!plan && (selected?.totalPages ?? 1) > 1} value={form.totalPages} onChange={event => setForm({ ...form, totalPages: event.target.value })} /></label>
+        {!editing && <label>Starting page<input type="number" min="0" max={form.totalPages ? Math.max(0, Number(form.totalPages) - 1) : 0} step="1" value={form.currentPage} onChange={event => setForm({ ...form, currentPage: event.target.value })} /></label>}
+        <p className="meta form-span">{Number(form.totalPages) > 1 ? `${form.totalPages} ÷ 7 = ${Number((Number(form.totalPages) / 7).toFixed(2))} pages per day.` : "Add the page count when you are ready to set the seven-day target."} Starting progress is a baseline. Log reading below to update your progress.</p>
+      </>}
       <div className="button-row form-span"><button className="small-btn primary">{editing ? "Save Book" : "Start Book"}</button><button type="button" className="small-btn" onClick={() => { setCreating(false); setEditing(false); setMessage(""); }}>Cancel</button></div>
     </form>}
     {message && <p className="saved-note top-gap" role="status">{message}</p>}
@@ -88,7 +100,7 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
       <button className="action-link" onClick={() => { setSelectedId(""); setEditing(false); setDeleteId(""); setMessage(""); }}>← All book folders</button>
       <h3 className="top-gap">{selected.title}</h3><p className="meta">{selected.author} · {selected.progressMode === "percentage" ? progressLabel(selected) : selected.totalPages > 1 ? `${selected.currentPage} / ${selected.totalPages} pages` : "Choose pages or percentage tracking below"}</p>
       <div className="button-row top-gap">
-        {!selected.deletedAt && <button className="small-btn" onClick={() => { setEditing(true); setForm({ title: selected.title, author: selected.author, totalPages: selected.totalPages > 1 ? String(selected.totalPages) : "", currentPage: String(selected.currentPage) }); }}>Edit Book</button>}
+        {!selected.deletedAt && <button className="small-btn" onClick={() => { setEditing(true); setForm({ ...blank(), title: selected.title, author: selected.author, totalPages: selected.totalPages > 1 ? String(selected.totalPages) : "", currentPage: String(selected.currentPage), progressMode: selected.progressMode ?? "pages", currentPercent: String(bookPercent(selected)), hours: selected.voiceTotalMinutes ? String(Math.floor(selected.voiceTotalMinutes / 60)) : "", durationMinutes: selected.voiceTotalMinutes ? String(selected.voiceTotalMinutes % 60) : "0", wpm: String(selected.voiceReferenceWpm ?? 150) }); }}>Edit Book</button>}
         {selected.deletedAt ? <button className="small-btn primary" onClick={() => changeState("restore")}>Restore Book</button> : <><button className="small-btn" onClick={() => changeState(selected.archivedAt ? "unarchive" : "archive")}>{selected.archivedAt ? "Unarchive Book" : "Archive Book"}</button><button className="small-btn" onClick={() => setDeleteId(selected.id)}>Delete Book</button></>}
       </div>
       {deleteId === selected.id && <div className="card top-gap" role="alert"><p>Move “{selected.title}” to Trash? Its page history, notes and breakdown will remain recoverable.</p><div className="button-row"><button className="small-btn primary" onClick={() => changeState("delete")}>Move to Trash</button><button className="small-btn" onClick={() => setDeleteId("")}>Keep Book</button></div></div>}
@@ -97,9 +109,9 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
       {selected.archivedAt || selected.deletedAt ? <p className="meta">Restore this book to resume logging. Existing commitments keep their original deadline.</p> : <>
         {!plan && !selected.completed && <button className="small-btn primary top-gap" onClick={() => {
           const unfinished = plans.find(item => { const book = books.find(b => b.id === item.bookId); return book && !book.completed; });
-          if (selected.totalPages <= 1) { setMessage("Edit Book to enter the actual total pages before starting."); return; }
+          if (selected.progressMode !== "percentage" && selected.totalPages <= 1) { setMessage("Edit Book to enter the actual total pages before starting."); return; }
           if (unfinished) { setMessage("Finish your existing seven-day commitment first. Restore its book if it is archived or in Trash."); return; }
-          try { startCommitment(selected.id, selected.totalPages); setMessage("Seven-day commitment started today."); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not start the commitment."); }
+          try { if (selected.progressMode === "percentage") startPercentageCommitment(selected.id, bookPercent(selected)); else startCommitment(selected.id, selected.totalPages); setMessage("Seven-day commitment started today."); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not start the commitment."); }
         }}>Begin seven-day commitment →</button>}
         <div className="top-gap"><DailyBookWorkflow key={selected.id} sourceId={selected.id} /></div>
         <details className="top-gap"><summary>Add another quote or note (optional)</summary><form className="form-grid top-gap" onSubmit={event => {
