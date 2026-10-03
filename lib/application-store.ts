@@ -62,7 +62,7 @@ export const saveBooks = (books: StoredBook[]) => {
   const next = books.map(book => {
     const prior = previous.find(item => item.id === book.id);
     const finished = book.progressMode === "percentage" ? (book.currentPercent ?? 0) >= 100 : book.totalPages > 1 && book.currentPage >= book.totalPages;
-    return { ...book, archivedAt: prior ? prior.archivedAt : book.archivedAt, deletedAt: prior ? prior.deletedAt : book.deletedAt, completed: finished, readingFinishedAt: book.readingFinishedAt ?? prior?.readingFinishedAt ?? (finished && prior && !prior.completed ? new Date().toISOString() : undefined) };
+    return { ...book, archivedAt: prior ? prior.archivedAt : book.archivedAt, deletedAt: prior ? prior.deletedAt : book.deletedAt, completed: finished, readingFinishedAt: finished ? (book.readingFinishedAt ?? prior?.readingFinishedAt ?? (prior && !prior.completed ? new Date().toISOString() : undefined)) : undefined };
   });
   // Older views save their visible shelf. Keep hidden books and their source IDs intact.
   const hidden = previous.filter(book => (book.archivedAt || book.deletedAt) && !next.some(item => item.id === book.id));
@@ -113,17 +113,19 @@ export function updateBookDetails(id: string, input: { title: string; author: st
   if (input.totalPages !== undefined && (!Number.isInteger(input.totalPages) || input.totalPages < 2 || (input.totalPages < book.currentPage || (!book.completed && input.totalPages === book.currentPage)))) throw new Error("Total pages must be a whole number at least as large as the current page.");
   const plans = read<{ bookId: string; totalPages: number; unit?: "percentage"; pageTotal?: number }[]>("alexandria-reading-commitments-v1", []);
   const plan = plans.find(item => item.bookId === id);
-  if (plan && (plan.unit !== "percentage" || plan.pageTotal) && totalPages !== (plan.pageTotal ?? plan.totalPages)) throw new Error("The total pages are fixed by this book's seven-day commitment.");
   const mode = input.progressMode ?? book.progressMode ?? "pages";
   const oldPercent = book.currentPercent ?? (book.totalPages > 1 ? book.currentPage / book.totalPages * 100 : 0);
-  const hasEvidence = !!plan || loadLogs().some(log => log.bookId === id);
-  if (hasEvidence && input.currentPercent !== undefined && Math.abs(input.currentPercent - oldPercent) > 1e-7) throw new Error("Starting progress is locked after tracking begins. Log new progress in the tally.");
   const percent = input.currentPercent ?? oldPercent;
-  if (!hasEvidence && !book.completed && percent === 100) throw new Error("Starting percentage must be below 100.");
   if (mode === "pages" && book.progressMode === "percentage" && totalPages <= 1) throw new Error("Enter the physical book’s total pages to switch to page tracking.");
   const nextPage = mode === "pages" && book.progressMode === "percentage" ? Math.floor(totalPages * percent / 100) : book.currentPage;
-  // The format can change, while the original seven-day deadline and evidence stay fixed.
-  const nextPlans = plans.map(p => p.bookId !== id ? p : mode === "percentage" && p.unit !== "percentage" ? { ...p, pageTotal: p.totalPages, totalPages: 100, unit: "percentage" as const } : mode === "pages" && p.unit === "percentage" ? { ...p, totalPages, pageTotal: undefined, unit: undefined } : p);
+  // Tracking metadata follows explicit corrections. Historical reading logs remain untouched.
+  const nextPlans = plans.map(p => {
+    if (p.bookId !== id) return p;
+    if (mode === "percentage" && p.unit !== "percentage") return { ...p, pageTotal: totalPages, totalPages: 100, unit: "percentage" as const };
+    if (mode === "pages" && p.unit === "percentage") return { ...p, totalPages, pageTotal: undefined, unit: undefined };
+    if (mode === "pages") return { ...p, totalPages };
+    return input.totalPages !== undefined && p.pageTotal ? { ...p, pageTotal: totalPages } : p;
+  });
   saveBooks(books.map(item => item.id === id ? { ...item, title: input.title.trim(), author: input.author.trim() || "Unknown author", totalPages, category: input.category ?? item.category ?? "general", progressMode: mode, currentPage: nextPage, currentPercent: mode === "percentage" || book.progressMode === "percentage" ? percent : item.currentPercent, voiceTotalMinutes: input.voiceTotalMinutes ?? item.voiceTotalMinutes, voiceReferenceWpm: input.voiceReferenceWpm ?? item.voiceReferenceWpm, voiceWpm: input.voiceReferenceWpm ?? item.voiceWpm } : item));
   if (plan) localStorage.setItem("alexandria-reading-commitments-v1", JSON.stringify(nextPlans));
   saveLogs(loadLogs().map(log => log.bookId === id ? { ...log, bookTitle: input.title.trim() } : log));
