@@ -99,7 +99,7 @@ export function createBook(input: { title: string; author?: string; totalPages?:
   const book: StoredBook = { id: uid("book"), title, author: input.author?.trim() || "Unknown author", totalPages, currentPage, category: input.category ?? "general", progressMode: input.progressMode ?? "pages", currentPercent: input.progressMode === "percentage" ? input.currentPercent ?? 0 : undefined, voiceTotalMinutes: input.voiceTotalMinutes, voiceReferenceWpm: input.voiceReferenceWpm, voiceWpm: input.voiceReferenceWpm, completed: false, highlights: [], principles: 0, lastRead: "Not logged yet" };
   saveBooks([...loadBooks({ includeArchived: true, includeDeleted: true }), book]);
   window.dispatchEvent(new Event("alexandria:data"));
-  return book;
+  return loadBooks({ includeArchived: true, includeDeleted: true }).find(item => item.id === book.id) ?? book;
 }
 
 export function updateBookDetails(id: string, input: { title: string; author: string; totalPages?: number } & BookTrackingInput): void {
