@@ -27,7 +27,7 @@ export function BookMetaPage({ book }: { book: StoredBook }) {
   const persist = (next: MetaRecord) => { localStorage.setItem(`alexandria-book-meta-v1:${book.id}`, JSON.stringify(next)); setRecord(next); };
   function commit(event: React.FormEvent) {
     event.preventDefault();
-    if (!complete || !record.responses[record.step]?.trim()) return;
+    if (!record.responses[record.step]?.trim()) return;
     if (record.step === 4) {
       if (!record.context.trim() || !record.action.trim() || !record.reviewDate) return;
       const application = addApplication({ sourceId: book.id, sourceTitle: book.title, principleText: record.responses[4], context: record.context, action: record.action, status: "planned", reviewDate: record.reviewDate });
@@ -39,16 +39,16 @@ export function BookMetaPage({ book }: { book: StoredBook }) {
   return <article className="card book-meta-card">
     <div className="kicker">Whole-book meta page · {book.author}</div><h2>{book.title}</h2>
     <p className="meta">Reading → Recall → Diagnose → Reduce → Rebuild → Apply → Outcome review</p>
-    {complete && <details className="top-gap"><summary>Principles and explanations developed while reading</summary>{listDailyWorkflows().filter(flow => flow.bookId === book.id && flow.drafts.principle).map(flow => <div className="note-item" key={flow.id}><strong>{flow.day} · {flow.drafts.location}</strong><p>{flow.drafts.principle}</p><p className="meta">Conditions: {flow.drafts.boundaries}</p>{flow.drafts.rewrite && <p>{flow.drafts.rewrite}</p>}</div>)}</details>}
-    {!complete && <p className="saved-note">Finish the book to unlock the whole-book breakdown. Quote study remains available while reading.</p>}
+    <details className="top-gap"><summary>Principles and explanations developed while reading</summary>{listDailyWorkflows().filter(flow => flow.bookId === book.id && flow.drafts.principle).map(flow => <div className="note-item" key={flow.id}><strong>{flow.day} · {flow.drafts.location}</strong><p>{flow.drafts.principle}</p><p className="meta">Conditions: {flow.drafts.boundaries}</p>{flow.drafts.rewrite && <p>{flow.drafts.rewrite}</p>}</div>)}</details>
+    {!complete && <p className="saved-note">This breakdown is provisional while you are still reading. Use it now if useful, then revise it after finishing as your model of the book changes.</p>}
     {record.step < 5 ? <form onSubmit={commit} className="form-grid top-gap">
-      <label className="form-span">{record.step + 1}. {stage.label}<p className="meta">{stage.prompt}</p><textarea required disabled={!complete} value={record.responses[record.step]} onChange={event => { const responses = [...record.responses]; responses[record.step] = event.target.value; persist({ ...record, responses }); }} /></label>
+      <label className="form-span">{record.step + 1}. {stage.label}<p className="meta">{stage.prompt}</p><textarea required value={record.responses[record.step]} onChange={event => { const responses = [...record.responses]; responses[record.step] = event.target.value; persist({ ...record, responses }); }} /></label>
       {record.step === 4 && <>
         <label className="form-span">Trigger / real situation<input required value={record.context} onChange={event => persist({ ...record, context: event.target.value })} /></label>
         <label className="form-span">Specific action and evidence of success<textarea required value={record.action} onChange={event => persist({ ...record, action: event.target.value })} /></label>
         <label>Outcome review date<input required type="date" value={record.reviewDate} onChange={event => persist({ ...record, reviewDate: event.target.value })} /></label>
       </>}
-      <div className="form-span"><button className="small-btn primary" disabled={!complete || !record.responses[record.step]?.trim()}>{record.step === 4 ? "Commit application →" : "Commit and continue →"}</button></div>
+      <div className="form-span"><button className="small-btn primary" disabled={!record.responses[record.step]?.trim()}>{record.step === 4 ? "Commit application →" : "Commit and continue →"}</button></div>
     </form> : <>
       <p className="saved-note top-gap">Breakdown committed. Application outcome review: {record.reviewDate}. Your commitment is also in Apply.</p>
       {application?.status === "planned" ? <button className="small-btn" onClick={() => { if (application) markApplicationAttempted(application.id); setMessage("Action marked attempted. Record its outcome below."); }}>Mark action attempted</button> : <>
