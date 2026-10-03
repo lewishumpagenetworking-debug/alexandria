@@ -17,6 +17,7 @@ import { PageHeader, Rule } from "@/components/page-header";
 import { BookTallyWorkspace } from "@/components/book-tally-workspace";
 import { bookPercent, progressLabel, validateReading } from "@/lib/reading-execution";
 import { ImportNotesWorkspace } from "@/components/import-notes-workspace";
+import { CurriculumBookshelf } from "@/components/curriculum-bookshelf";
 
 const maturity = ["Collected", "Understood", "Interrogated", "Reduced", "Rebuilt", "Applied", "Tested", "Integrated"];
 
@@ -147,6 +148,8 @@ export function LibraryView() {
   return <section className="view active"><div className="content"><PageHeader eyebrow="The external memory" title="The Library" intro="Sources are beginnings, not trophies. Follow an idea from encounter through challenge, application, and revision." />
     <div className="section-tools"><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search books, authors, principles…" aria-label="Search library" /><button className="small-btn primary" onClick={() => setManageBooks("new")}>＋ Start Book</button><button className="small-btn" onClick={() => setManageBooks("manage")}>Manage books</button><span className="result-count">{shown.length} sources found</span></div>
     <div className="source-grid library-shelves">{shown.map((book, index) => <button className="book-card" onClick={() => setSelected(book)} key={book.id}><div className={`folio-cover tone-${index % 4}`}>{book.title}</div><div><span className="type">Book · {book.author}</span><h3>{book.title}</h3><p>{progressLabel(book)} · {getHighlightsForSource(book.id).length} highlights · {getPrinciplesForSource(book.id).length} principles</p><div className="progress"><span style={{ width: `${Number(bookPercent(book).toFixed(2))}%` }} /></div></div></button>)}</div>
+    <Rule />
+    <CurriculumBookshelf />
   </div></section>;
 }
 
