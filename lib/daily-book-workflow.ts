@@ -73,7 +73,7 @@ export function commitDailyTask(bookId: string, day: string): DailyBookWorkflow 
       break;
     }
     case 1:
-      if (!readingTaskStatus(bookId, day).ready) throw new Error(readingTaskStatus(bookId, day).reason);
+      // Reading pace is advisory. The personal weekly completion target must never lock the workflow.
       break;
     case 2: requireFields("location", "recall"); break;
     case 3: {
