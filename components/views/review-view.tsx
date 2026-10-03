@@ -7,6 +7,11 @@ import { awardPoints, POINTS } from "@/lib/points-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 import { SourceReference } from "@/components/source-reference";
 import { getReviewEvidence } from "@/lib/review-evidence";
+import { loadLearningCampaign } from "@/lib/curriculum-store";
+import { curriculumBookById, curriculumFocusById } from "@/data/curriculum";
+import { loadBooks } from "@/lib/application-store";
+import { getHighlightsForSource, getPrinciplesForSource } from "@/lib/library-notes-store";
+import { saveCapture } from "@/lib/capture-store";
 
 type Phase = "idle" | "recall" | "revealed" | "done";
 
@@ -17,6 +22,8 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
   const [response, setResponse] = useState("");
   const [scores, setScores] = useState<RetrievalQuality[]>([]);
   const [totalDue, setTotalDue] = useState(0);
+  const [campaignReview, setCampaignReview] = useState<{ prompt: string; capabilityTitle: string; leaderTitle: string } | null>(null);
+  const [synthesis, setSynthesis] = useState("");
 
   useEffect(() => {
     const challenges: SculptorChallenge[] = [];
@@ -36,7 +43,37 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
     setQueue(challenges);
     setTotalDue(challenges.length);
     setPhase(challenges.length > 0 ? "recall" : "done");
+
+    const campaign = loadLearningCampaign();
+    if (campaign) {
+      const focus = curriculumFocusById(campaign.focusId);
+      const capability = curriculumBookById(campaign.capabilityBookId);
+      const leader = curriculumBookById(campaign.leaderBookId);
+      const books = loadBooks({ includeArchived: true, includeDeleted: false });
+      const match = (title?: string, author?: string) => books.find(book => book.title.toLowerCase() === title?.toLowerCase() && book.author.toLowerCase() === author?.toLowerCase());
+      const capabilityBook = match(capability?.title, capability?.author);
+      const leaderBook = match(leader?.title, leader?.author);
+      const hasEvidence = (book: typeof capabilityBook) => !!book && (getHighlightsForSource(book.id).length > 0 || getPrinciplesForSource(book.id).length > 0);
+      if (focus && capability && leader && hasEvidence(capabilityBook) && hasEvidence(leaderBook)) {
+        setCampaignReview({ prompt: focus.synthesisPrompt, capabilityTitle: capability.title, leaderTitle: leader.title });
+      }
+    }
   }, []);
+
+  function captureSynthesis() {
+    if (!campaignReview || !synthesis.trim()) return;
+    saveCapture({
+      type: "Connection",
+      text: `Dual-track synthesis — ${campaignReview.capabilityTitle} × ${campaignReview.leaderTitle}\n\nQuestion: ${campaignReview.prompt}\n\nSynthesis: ${synthesis.trim()}`,
+      category: "cross-domain synthesis",
+      relatedBook: campaignReview.capabilityTitle,
+      inputSource: "keyboard",
+    });
+    awardPoints("capture", "Captured a dual-track synthesis", POINTS.capture);
+    window.dispatchEvent(new Event("alexandria:data"));
+    setSynthesis("");
+    setCampaignReview(null);
+  }
 
   function score(quality: RetrievalQuality) {
     const challenge = queue[index];
@@ -70,6 +107,13 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
         <div className="content">
           <div className="eyebrow">Review</div>
           <h1 className="page-title">Up to date</h1>
+          {campaignReview && <article className="card review-card campaign-synthesis-card">
+          <div className="kicker">Dual-track synthesis · evidence exists in both books</div>
+          <h2>{campaignReview.capabilityTitle} × {campaignReview.leaderTitle}</h2>
+          <p className="review-prompt">{campaignReview.prompt}</p>
+          <textarea className="recall-input" value={synthesis} onChange={event => setSynthesis(event.target.value)} placeholder="Extract the transferable mechanism, then state explicitly where the analogy breaks…" />
+          <div className="button-row"><button className="small-btn primary" disabled={!synthesis.trim()} onClick={captureSynthesis}>Capture synthesis →</button></div>
+        </article>}
           <article className="card review-empty">
             <p className="review-empty-icon">✓</p>
             <h2>Nothing due for review</h2>
@@ -88,6 +132,13 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
         <div className="content">
           <div className="eyebrow">Review · session complete</div>
           <h1 className="page-title">Session complete</h1>
+          {campaignReview && <article className="card review-card campaign-synthesis-card">
+          <div className="kicker">Dual-track synthesis · evidence exists in both books</div>
+          <h2>{campaignReview.capabilityTitle} × {campaignReview.leaderTitle}</h2>
+          <p className="review-prompt">{campaignReview.prompt}</p>
+          <textarea className="recall-input" value={synthesis} onChange={event => setSynthesis(event.target.value)} placeholder="Extract the transferable mechanism, then state explicitly where the analogy breaks…" />
+          <div className="button-row"><button className="small-btn primary" disabled={!synthesis.trim()} onClick={captureSynthesis}>Capture synthesis →</button></div>
+        </article>}
           <article className="card review-result">
             <div className="result-stats">
               <div className="result-stat good"><b>{nailed}</b><span>Exact</span></div>
@@ -120,6 +171,14 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
           <div className="eyebrow">Review · {index + 1} of {queue.length}</div>
           <div className="review-progress-bar"><span style={{ width: `${(index / queue.length) * 100}%` }} /></div>
         </div>
+
+{campaignReview && <article className="card review-card campaign-synthesis-card">
+          <div className="kicker">Dual-track synthesis · evidence exists in both books</div>
+          <h2>{campaignReview.capabilityTitle} × {campaignReview.leaderTitle}</h2>
+          <p className="review-prompt">{campaignReview.prompt}</p>
+          <textarea className="recall-input" value={synthesis} onChange={event => setSynthesis(event.target.value)} placeholder="Extract the transferable mechanism, then state explicitly where the analogy breaks…" />
+          <div className="button-row"><button className="small-btn primary" disabled={!synthesis.trim()} onClick={captureSynthesis}>Capture synthesis →</button></div>
+        </article>}
 
         <article className="card review-card">
           <div className="review-source">
