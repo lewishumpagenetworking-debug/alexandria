@@ -18,12 +18,31 @@ export function listCommitments(): ReadingCommitment[] {
   if (typeof window === "undefined") return [];
   try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; }
 }
+function writeCommitments(plans: ReadingCommitment[]): void {
+  localStorage.setItem(KEY, JSON.stringify(plans));
+  window.dispatchEvent(new Event("alexandria:data"));
+}
+
 export function startCommitment(bookId: string, totalPages: number): void {
   if (!Number.isInteger(totalPages) || totalPages < 1) throw new Error("Enter the book's actual total page count.");
   const plans = listCommitments();
-  if (plans.some(plan => plan.bookId === bookId)) throw new Error("This book already has a fixed reading commitment.");
-  localStorage.setItem(KEY, JSON.stringify([...plans, { bookId, totalPages, startDate: londonDay() }]));
-  window.dispatchEvent(new Event("alexandria:data"));
+  if (plans.some(plan => plan.bookId === bookId)) throw new Error("This book is already being tracked. Restart or stop that target instead.");
+  writeCommitments([...plans, { bookId, totalPages, startDate: londonDay() }]);
+}
+
+export function restartCommitment(bookId: string, totalPages: number): void {
+  if (!Number.isInteger(totalPages) || totalPages < 1) throw new Error("Enter the book's actual total page count.");
+  const plans = listCommitments().filter(plan => plan.bookId !== bookId);
+  writeCommitments([...plans, { bookId, totalPages, startDate: londonDay() }]);
+}
+
+export function stopCommitment(bookId: string): void {
+  writeCommitments(listCommitments().filter(plan => plan.bookId !== bookId));
+}
+
+export function updateCommitmentTarget(bookId: string, totalPages: number): void {
+  if (!Number.isInteger(totalPages) || totalPages < 1) return;
+  writeCommitments(listCommitments().map(plan => plan.bookId === bookId && plan.unit !== "percentage" ? { ...plan, totalPages } : plan));
 }
 export function bookPercent(book: StoredBook): number {
   return book.currentPercent ?? (book.totalPages > 1 ? book.currentPage / book.totalPages * 100 : 0);
@@ -40,13 +59,18 @@ export function logCredit(plan: ReadingCommitment, log: ReadingLog): number {
 }
 export function usePercentageCommitment(bookId: string, pageTotal: number): void {
   const plans = listCommitments();
-  localStorage.setItem(KEY, JSON.stringify(plans.map(plan => plan.bookId === bookId && plan.unit !== "percentage" ? { ...plan, totalPages: 100, unit: "percentage", pageTotal } : plan)));
+  writeCommitments(plans.map(plan => plan.bookId === bookId && plan.unit !== "percentage" ? { ...plan, totalPages: 100, unit: "percentage", pageTotal } : plan));
 }
 export function startPercentageCommitment(bookId: string, startingPercent = 0): void {
   if (!Number.isFinite(startingPercent) || startingPercent < 0 || startingPercent >= 100) throw new Error("Starting percentage must be between 0 and 100, excluding 100.");
-  if (listCommitments().some(plan => plan.bookId === bookId)) throw new Error("This book already has a fixed reading commitment.");
-  localStorage.setItem(KEY, JSON.stringify([...listCommitments(), { bookId, totalPages: 100, unit: "percentage", startDate: londonDay() }]));
-  window.dispatchEvent(new Event("alexandria:data"));
+  if (listCommitments().some(plan => plan.bookId === bookId)) throw new Error("This book is already being tracked. Restart or stop that target instead.");
+  writeCommitments([...listCommitments(), { bookId, totalPages: 100, unit: "percentage", startDate: londonDay() }]);
+}
+
+export function restartPercentageCommitment(bookId: string, startingPercent = 0): void {
+  if (!Number.isFinite(startingPercent) || startingPercent < 0 || startingPercent >= 100) throw new Error("Starting percentage must be between 0 and 100, excluding 100.");
+  const plans = listCommitments().filter(plan => plan.bookId !== bookId);
+  writeCommitments([...plans, { bookId, totalPages: 100, unit: "percentage", startDate: londonDay() }]);
 }
 export function executionStatus(plan: ReadingCommitment, book: StoredBook, logs: ReadingLog[], today = londonDay()) {
   const elapsed = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${plan.startDate}T12:00:00Z`)) / 86400000);
