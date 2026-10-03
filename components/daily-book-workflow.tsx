@@ -81,7 +81,7 @@ export function DailyBookWorkflow({ sourceId }: { sourceId?: string } = {}) {
         {!sourceId && <label>Workflow book<select value={id} onChange={event => { setSelectedId(event.target.value); setDay(today); setMessage(""); setTotal(""); }}>{books.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}</select></label>}
         <label>Session day<select value={day} onChange={event => { setDay(event.target.value); setMessage(""); }}><option value={today}>Today · {today}</option>{histories.filter(flow => flow.day !== today).map(flow => <option key={flow.id} value={flow.day}>{flow.day} · {flow.finishedAt ? "Complete" : "Unfinished"}</option>)}</select></label>
       </div>
-      <p className="meta top-gap">Daily target: {book.progressMode === "percentage" ? "14.29 percentage points (100 ÷ 7)" : book.totalPages > 1 ? `${Number((book.totalPages / 7).toFixed(2))} pages (${book.totalPages} ÷ 7)` : "set up pages or percentage tracking"} · 1 book/week · 4/month · 48/year</p>
+      <p className="meta top-gap">Daily target for this book: {book.progressMode === "percentage" ? "14.29 percentage points (100 ÷ 7)" : book.totalPages > 1 ? `${Number((book.totalPages / 7).toFixed(2))} pages (${book.totalPages} ÷ 7)` : "set up pages or percentage tracking"}. Weekly outcome goal: complete at least one book; multiple books may remain active.</p>
       <p className="meta top-gap">{book.title} · {book.author}{d.location ? ` · ${d.location}` : ""}</p>
       <ol className="daily-workflow-steps" aria-label="Daily sequence">{DAILY_TASKS.map((task, index) => workflow.kind === "outcome-review" && index > 0 ? null : index === 0 && workflow.committed["0"] === "not-due" ? null : <li key={task} className={workflow.committed[String(index)] ? "done" : index === workflow.step ? "current" : "locked"} aria-current={!workflow.finishedAt && index === workflow.step ? "step" : undefined}>{workflow.committed[String(index)] ? "✓ " : ""}{task}</li>)}</ol>
       {workflow.finishedAt ? <div className="completion top-gap"><div><div className="kicker">{workflow.kind === "outcome-review" ? "Outcome review complete" : "Daily workflow complete"}</div><h3>{book.title} · {day}</h3><p className="meta">Your work is saved. Planned applications stay outstanding until attempted and reviewed.</p><div className="button-row"><button className="small-btn" onClick={() => { window.location.hash = "review"; }}>Continue to concept review →</button>{!sourceId && workflow.kind === "outcome-review" && books.some(b => !b.completed) && <button className="small-btn primary" onClick={() => { setSelectedId(active?.bookId || books.find(b => !b.completed)?.id || ""); setDay(today); setMessage(""); }}>Continue to today's reading →</button>}<button className="small-btn" onClick={startBook}>Start next book →</button></div></div></div> : <>
@@ -90,14 +90,16 @@ export function DailyBookWorkflow({ sourceId }: { sourceId?: string } = {}) {
         {workflow.step === 1 && !committed && <>
           {!plan && day === today && book.progressMode !== "percentage" && <VoiceBookSetup key={`voice-${id}`} book={book} />}
           {!plan && day === today && book.progressMode === "percentage" && <button className="small-btn primary top-gap" onClick={() => {
-            try { if (active && active.bookId !== book.id) throw new Error("Finish the existing weekly commitment first. Its deadline is unchanged."); startPercentageCommitment(book.id, bookPercent(book)); setMessage("Percentage commitment started. Log today's progress below."); }
+            try { startPercentageCommitment(book.id, bookPercent(book)); setMessage("Percentage target started. Other active books remain available."); }
             catch(error) { setMessage(error instanceof Error ? error.message : "Could not begin commitment."); }
           }}>Begin seven-day percentage commitment →</button>}
           {!plan && day === today && book.progressMode !== "percentage" && <form className="form-grid top-gap" onSubmit={event => {
             event.preventDefault(); const count = Number(total || (book.totalPages > 1 ? book.totalPages : ""));
             try {
-              if (active && active.bookId !== book.id) throw new Error("Finish the existing weekly commitment first. Its deadline is unchanged.");
-              updateBookDetails(book.id, { title: book.title, author: book.author, totalPages: count }); startCommitment(book.id, count); setTotal(""); setMessage("Commitment started. Log today's reading below.");
+              updateBookDetails(book.id, { title: book.title, author: book.author, totalPages: count });
+              startCommitment(book.id, count);
+              setTotal("");
+              setMessage("Seven-day target started. Other active books remain available.");
             } catch (error) { setMessage(error instanceof Error ? error.message : "Could not start reading."); }
           }}><label>Total pages<input required type="number" min="2" value={total || (book.totalPages > 1 ? book.totalPages : "")} onChange={event => setTotal(event.target.value)} /></label><button className="small-btn primary">Begin seven-day commitment →</button></form>}
           {(book.totalPages > 1 || book.progressMode === "percentage") && day === today && !book.completed && <DailyReadingTally key={id} sourceId={id} />}
