@@ -100,15 +100,15 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
       }}><option value="pages">Physical book · pages</option><option value="percentage">Voice Dream · percentage (0–100%)</option></select></label>
       <label>Author <span className="optional">optional</span><input value={form.author} onChange={event => setForm({ ...form, author: event.target.value })} /></label>
       {form.progressMode === "percentage" ? <>
-        <label>{editing ? "Saved percentage" : "Starting percentage"}<input required type="number" min="0" max={editing ? "100" : "99.99"} step="any" value={form.currentPercent} onChange={event => setForm({ ...form, currentPercent: event.target.value })} /></label>
+        <label>{editing ? "Saved percentage" : "Starting percentage"}<input required type="number" min="0" max="100" step="any" value={form.currentPercent} onChange={event => setForm({ ...form, currentPercent: event.target.value })} /></label>
         <label>Full-book hours <span className="optional">can be added later</span><input type="number" min="0" step="1" value={form.hours} onChange={event => setForm({ ...form, hours: event.target.value })} /></label>
         <label>Additional minutes<input type="number" min="0" max="59" step="any" value={form.durationMinutes} onChange={event => setForm({ ...form, durationMinutes: event.target.value })} /></label>
         <label>WPM for this displayed duration<input required type="number" min="1" step="any" value={form.wpm} onChange={event => setForm({ ...form, wpm: event.target.value })} /></label>
-        <p className="meta form-span">Voice Dream format: 0% → 100%. Daily requirement: 100 ÷ 7 ≈ 14.29 percentage points. Enter the full-book duration displayed at this WPM, not time remaining. Changing session WPM adjusts estimated time, while the percentage target stays fixed. Starting progress is a baseline, not a reading session.</p>
+        <p className="meta form-span">Voice Dream format: 0% → 100%. Seven-day pace: about 14.29 percentage points per day. This is guidance, not a lock. Enter the full-book duration displayed at this WPM, not time remaining. Starting progress is a baseline and can be corrected later.</p>
       </> : <>
         <label>Total pages <span className="optional">can be corrected anytime</span><input type="number" min="2" step="1" value={form.totalPages} onChange={event => setForm({ ...form, totalPages: event.target.value })} /></label>
-        {!editing && <label>Starting page<input type="number" min="0" max={form.totalPages ? Math.max(0, Number(form.totalPages) - 1) : 0} step="1" value={form.currentPage} onChange={event => setForm({ ...form, currentPage: event.target.value })} /></label>}
-        <p className="meta form-span">{Number(form.totalPages) > 1 ? `${form.totalPages} ÷ 7 = ${Number((Number(form.totalPages) / 7).toFixed(2))} pages per day.` : "Add the page count when you are ready to set the seven-day target."} Starting progress is a baseline. Log reading below to update your progress.</p>
+        {!editing && <label>Starting page<input type="number" min="0" max={form.totalPages ? Math.max(0, Number(form.totalPages)) : 0} step="1" value={form.currentPage} onChange={event => setForm({ ...form, currentPage: event.target.value })} /></label>}
+        <p className="meta form-span">{Number(form.totalPages) > 1 ? `${form.totalPages} ÷ 7 = ${Number((Number(form.totalPages) / 7).toFixed(2))} pages per day as a pacing guide.` : "Add the page count when you are ready to set a seven-day target."} Starting progress is a correctable baseline. It does not prevent tracking another book.</p>
       </>}
       <div className="button-row form-span"><button className="small-btn primary">{editing ? "Save Book" : "Start Book"}</button><button type="button" className="small-btn" onClick={() => { setCreating(false); setEditing(false); setMessage(""); }}>Cancel</button></div>
     </form>}
