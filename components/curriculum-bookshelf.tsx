@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { curriculumBookById, curriculumBooks, curriculumFocuses, type CurriculumFocusId } from "@/data/curriculum";
 import { createBook, loadBooks } from "@/lib/application-store";
 import { loadLearningCampaign, saveLearningCampaign } from "@/lib/curriculum-store";
@@ -9,12 +9,18 @@ export function CurriculumBookshelf() {
   const [focusId, setFocusId] = useState<CurriculumFocusId>(() => loadLearningCampaign()?.focusId ?? "consumer-psychology");
   const [campaign, setCampaign] = useState(loadLearningCampaign);
   const [message, setMessage] = useState("");
+  const [libraryKeys, setLibraryKeys] = useState<Set<string>>(new Set());
   const focus = curriculumFocuses.find(item => item.id === focusId) ?? curriculumFocuses[0];
   const activeCapabilityId = campaign?.focusId === focus.id ? campaign.capabilityBookId : focus.capabilityBookIds[0];
   const activeLeaderId = campaign?.focusId === focus.id ? campaign.leaderBookId : focus.leaderBookId;
   const capability = curriculumBookById(activeCapabilityId);
   const leader = curriculumBookById(activeLeaderId);
-  const libraryKeys = useMemo(() => new Set(loadBooks({ includeArchived: true, includeDeleted: true }).map(book => `${book.title}::${book.author}`.toLowerCase())), [campaign, message]);
+  useEffect(() => {
+    const sync = () => setLibraryKeys(new Set(loadBooks({ includeArchived: true, includeDeleted: true }).map(book => `${book.title}::${book.author}`.toLowerCase())));
+    sync();
+    window.addEventListener("alexandria:data", sync);
+    return () => window.removeEventListener("alexandria:data", sync);
+  }, []);
 
   function inLibrary(title?: string, author?: string) {
     if (!title || !author) return false;
