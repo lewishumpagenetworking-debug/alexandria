@@ -46,9 +46,9 @@ export function configureVoiceBook(bookId: string, totalMinutes: number, referen
   if (!book) throw new Error("Choose an active book.");
   if (!Number.isFinite(totalMinutes) || totalMinutes <= 0 || !Number.isFinite(referenceWpm) || referenceWpm <= 0) throw new Error("Enter a positive full-book duration and its reference WPM.");
   const plan = listCommitments().find(p => p.bookId === bookId);
-  if (startingPercent !== undefined && (!Number.isFinite(startingPercent) || startingPercent < 0 || startingPercent >= 100)) throw new Error("Starting percentage must be from 0 up to, but below, 100.");
+  if (startingPercent !== undefined && (!Number.isFinite(startingPercent) || startingPercent < 0 || startingPercent > 100)) throw new Error("Saved percentage must be between 0 and 100.");
   saveBooks(books.map(b => b.id === bookId ? { ...b, progressMode: "percentage", currentPercent: startingPercent ?? bookPercent(b), currentPage: b.currentPage, voiceTotalMinutes: totalMinutes, voiceReferenceWpm: referenceWpm, voiceWpm: b.voiceWpm ?? referenceWpm } : b));
-  if (!plan) startPercentageCommitment(bookId, startingPercent);
-  else if (plan.unit !== "percentage") usePercentageCommitment(bookId, book.totalPages);
+  if (!plan && (startingPercent ?? bookPercent(book)) < 100) startPercentageCommitment(bookId, startingPercent);
+  else if (plan && plan.unit !== "percentage") usePercentageCommitment(bookId, book.totalPages);
   window.dispatchEvent(new Event("alexandria:data"));
 }
