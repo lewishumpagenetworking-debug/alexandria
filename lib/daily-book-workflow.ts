@@ -57,7 +57,7 @@ export function readingTaskStatus(bookId: string, day = londonDay()) {
   if (!book || !plan) return { ready: false, quota: book ? book.progressMode === "percentage" ? 14.29 : Math.ceil(book.totalPages / 7) : 0, pages: 0, reason: "Set up pages or percentage tracking and begin this book's seven-day commitment." };
   const status = executionStatus(plan, book, loadLogs(), day);
   const ready = status.pagesToday + 1e-7 >= status.quota || (status.finished && status.pagesToday > 0 && !!book.readingFinishedAt && londonDay(new Date(book.readingFinishedAt)) === day);
-  return { ready, quota: status.quota, pages: status.pagesToday, reason: ready ? "Reading requirement met." : `${Number(Math.max(0, status.quota - status.pagesToday).toFixed(2))} ${plan.unit === "percentage" ? "percentage points" : "pages"} still required for ${day}.` };
+  return { ready, quota: status.quota, pages: status.pagesToday, reason: ready ? "Daily pace target met." : `${Number(Math.max(0, status.quota - status.pagesToday).toFixed(2))} ${plan.unit === "percentage" ? "percentage points" : "pages"} remain to the optional pace target for ${day}.` };
 }
 export function commitDailyTask(bookId: string, day: string): DailyBookWorkflow {
   let workflow = getDailyWorkflow(bookId, day);
