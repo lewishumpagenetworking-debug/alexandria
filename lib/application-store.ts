@@ -90,13 +90,12 @@ function validateVoiceDetails(input: BookTrackingInput) {
 }
 export function createBook(input: { title: string; author?: string; totalPages?: number; currentPage?: number } & BookTrackingInput): StoredBook {
   validateVoiceDetails(input);
-  if (input.currentPercent === 100) throw new Error("Starting percentage must be below 100.");
   const title = input.title.trim();
   const currentPage = input.currentPage ?? 0;
   const totalPages = input.totalPages ?? 1;
   if (!title) throw new Error("Enter a book title.");
   if (input.totalPages !== undefined && (!Number.isInteger(totalPages) || totalPages < 2)) throw new Error("Enter the actual total pages (at least 2).");
-  if (!Number.isInteger(currentPage) || currentPage < 0 || currentPage >= totalPages) throw new Error("Starting page must be a whole number below the total pages.");
+  if (!Number.isInteger(currentPage) || currentPage < 0 || currentPage > totalPages) throw new Error("Starting page must be a whole number no greater than the total pages.");
   const book: StoredBook = { id: uid("book"), title, author: input.author?.trim() || "Unknown author", totalPages, currentPage, category: input.category ?? "general", progressMode: input.progressMode ?? "pages", currentPercent: input.progressMode === "percentage" ? input.currentPercent ?? 0 : undefined, voiceTotalMinutes: input.voiceTotalMinutes, voiceReferenceWpm: input.voiceReferenceWpm, voiceWpm: input.voiceReferenceWpm, completed: false, highlights: [], principles: 0, lastRead: "Not logged yet" };
   saveBooks([...loadBooks({ includeArchived: true, includeDeleted: true }), book]);
   window.dispatchEvent(new Event("alexandria:data"));
@@ -110,7 +109,7 @@ export function updateBookDetails(id: string, input: { title: string; author: st
   validateVoiceDetails(input);
   if (!input.title.trim()) throw new Error("Enter a book title.");
   const totalPages = input.totalPages ?? book.totalPages;
-  if (input.totalPages !== undefined && (!Number.isInteger(input.totalPages) || input.totalPages < 2 || (input.totalPages < book.currentPage || (!book.completed && input.totalPages === book.currentPage)))) throw new Error("Total pages must be a whole number at least as large as the current page.");
+  if (input.totalPages !== undefined && (!Number.isInteger(input.totalPages) || input.totalPages < 2 || input.totalPages < book.currentPage)) throw new Error("Total pages must be a whole number at least as large as the current page.");
   const plans = read<{ bookId: string; totalPages: number; unit?: "percentage"; pageTotal?: number }[]>("alexandria-reading-commitments-v1", []);
   const plan = plans.find(item => item.bookId === id);
   const mode = input.progressMode ?? book.progressMode ?? "pages";
