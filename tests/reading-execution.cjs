@@ -59,6 +59,7 @@ assert.throws(() => store.createBook({title:'  ',totalPages:350}));
 assert.throws(() => store.createBook({title:'Bad pages',totalPages:2.5}));
 const completedAtCreation = store.createBook({title:'Already read',totalPages:350,currentPage:350});
 assert.equal(completedAtCreation.completed,true,'A personal library may add a book already completed');
+memory.clear();
 const first = store.createBook({title:'  A Life  ',author:'  Author  ',totalPages:350,currentPage:20});
 const second = store.createBook({title:'A Life',totalPages:210});
 assert.notEqual(first.id,second.id);
