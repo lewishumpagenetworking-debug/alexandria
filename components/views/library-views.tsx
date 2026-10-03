@@ -123,6 +123,8 @@ export function LibraryView() {
     const bookHighlights = getHighlightsForSource(selected.id);
     const bookPrinciples = getPrinciplesForSource(selected.id);
     const canStudy = bookHighlights.length > 0 || bookPrinciples.length > 0;
+    const hasAnyNotes = canStudy || selected.highlights.length > 0 || selected.principles > 0;
+    const hasLegacyOnlyNotes = !canStudy && (selected.highlights.length > 0 || selected.principles > 0);
 
     const reconstruction = studyReasoning.rebuild?.["Reconstruction"] || studyReasoning.reduce?.["Reconstruction"] || studyReasoning.rebuild?.["Fundamental truths"] || studyReasoning.reduce?.["Fundamental truths"];
     const studyContext: BookStudyContext | undefined = studyAnchor ? {
@@ -156,15 +158,34 @@ export function LibraryView() {
       <div className="button-row top-gap">
         <button className="small-btn primary" disabled={!canStudy} onClick={startStudy}>▶ Dissect a quote / principle</button>
         <button className="small-btn" onClick={() => setManageLibrary(true)}>⇪ Add / import notes</button>
-        {canStudy && <button className="small-btn remove-btn" onClick={clearAllBookNotes}>Remove all notes</button>}
-        {!canStudy && <span className="voice-note">Add or import notes first so Alexandria has material to test.</span>}
+        <button className="small-btn danger-outline-btn" onClick={() => document.getElementById("book-note-management")?.scrollIntoView({ behavior: "smooth", block: "center" })}>Manage / delete notes</button>
+        {!canStudy && !hasAnyNotes && <span className="voice-note">Add or import notes first so Alexandria has material to test.</span>}
       </div>
+
+      <article id="book-note-management" className="note-management-panel top-gap">
+        <div className="note-management-copy">
+          <div className="kicker danger-kicker">Manage notes</div>
+          <h2>Notes attached to this book</h2>
+          <p>{bookHighlights.length} highlights · {bookPrinciples.length} principles currently visible in Alexandria.</p>
+          <p className="meta">Deleting notes does not delete the book, reading progress, reading logs, or commitment history.</p>
+          {hasLegacyOnlyNotes && <p className="saved-note">Older imported note data is attached to this book even though it is not shown as individual rich notes below. Use “Delete all notes from this book” to clear that older data safely.</p>}
+        </div>
+        <div className="note-management-actions">
+          <button className="danger-btn" disabled={!hasAnyNotes} onClick={clearAllBookNotes}>Delete all notes from this book</button>
+          <span className="meta">{hasAnyNotes ? "Use this for an incorrect bulk upload or wrong book assignment." : "There are no notes attached to this book."}</span>
+        </div>
+      </article>
+
       {noteRemovalMessage && <p className="saved-note top-gap" role="status">{noteRemovalMessage}</p>}
       <Rule />
-      <div className="notes-list">
-        {bookHighlights.length === 0 && bookPrinciples.length === 0 && <div className="empty"><strong>No notes yet.</strong><span>Your book is ready. Add quotes as you read, or import notes later.</span><div className="top-gap"><button className="small-btn primary" onClick={() => setManageLibrary(true)}>Add / import notes</button></div></div>}
-        {bookHighlights.map((highlight) => <div className="note-item" key={highlight.id}><div className="card-head"><div className="kicker">Highlight{highlight.location ? ` · ${highlight.location}` : ""}</div><button className="remove-btn" onClick={() => removeHighlight(highlight.id)} aria-label={`Remove highlight from ${selected.title}`}>× Remove</button></div><p>{highlight.text}</p></div>)}
-        {bookPrinciples.map((principle) => <div className="note-item" key={principle.id}><div className="card-head"><div className="kicker">Principle</div><button className="remove-btn" onClick={() => removePrinciple(principle.id)} aria-label={`Remove principle from ${selected.title}`}>× Remove</button></div><p>{principle.statement}</p></div>)}
+      <div className="notes-section-head">
+        <div><div className="kicker">Individual note management</div><h2>Review or delete one item</h2></div>
+        <span className="meta">Each item below has its own visible delete action.</span>
+      </div>
+      <div className="notes-list top-gap">
+        {bookHighlights.length === 0 && bookPrinciples.length === 0 && <div className="empty"><strong>No individual rich notes shown.</strong><span>{hasLegacyOnlyNotes ? "This book contains older imported note data. Use the Manage notes panel above to delete all of it." : "Your book is ready. Add quotes as you read, or import notes later."}</span><div className="top-gap"><button className="small-btn primary" onClick={() => setManageLibrary(true)}>Add / import notes</button></div></div>}
+        {bookHighlights.map((highlight) => <div className="note-item managed-note-item" key={highlight.id}><div className="card-head"><div className="kicker">Highlight{highlight.location ? ` · ${highlight.location}` : ""}</div><button className="danger-link-btn" onClick={() => removeHighlight(highlight.id)} aria-label={`Delete highlight from ${selected.title}`}>Delete note</button></div><p>{highlight.text}</p></div>)}
+        {bookPrinciples.map((principle) => <div className="note-item managed-note-item" key={principle.id}><div className="card-head"><div className="kicker">Principle</div><button className="danger-link-btn" onClick={() => removePrinciple(principle.id)} aria-label={`Delete principle from ${selected.title}`}>Delete principle</button></div><p>{principle.statement}</p></div>)}
       </div>
     </div></section>;
   }
