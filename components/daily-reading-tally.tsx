@@ -123,6 +123,6 @@ export function DailyReadingTally({ sourceId }: { sourceId?: string } = {}) {
       <div><strong>{knowledgeRate}</strong><span>captures per 10 pages</span></div>
     </div>}
 
-    <p className="meta top-gap">{percentageMode ? "Record the percentage actually reached in your reader. Slower speech changes the time needed, while the seven-day completion target stays fixed." : "Record the pages you actually read. Your book’s daily requirement is its total pages divided by seven."}</p>
+    <p className="meta top-gap">{percentageMode ? "Record the percentage actually reached in your reader. The seven-day pace is a guide and can be restarted or ignored without blocking other books." : "Record the pages you actually read. Total pages ÷ 7 is a pacing guide, not a permission gate."}</p>
   </article>;
 }
