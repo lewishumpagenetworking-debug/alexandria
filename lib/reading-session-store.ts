@@ -46,9 +46,7 @@ export function configureVoiceBook(bookId: string, totalMinutes: number, referen
   if (!book) throw new Error("Choose an active book.");
   if (!Number.isFinite(totalMinutes) || totalMinutes <= 0 || !Number.isFinite(referenceWpm) || referenceWpm <= 0) throw new Error("Enter a positive full-book duration and its reference WPM.");
   const plan = listCommitments().find(p => p.bookId === bookId);
-  if (startingPercent !== undefined && (plan || loadLogs().some(l => l.bookId === bookId))) throw new Error("Starting progress is locked after tracking begins.");
   if (startingPercent !== undefined && (!Number.isFinite(startingPercent) || startingPercent < 0 || startingPercent >= 100)) throw new Error("Starting percentage must be from 0 up to, but below, 100.");
-  if (!plan && listCommitments().some(p => loadBooks({ includeArchived: true, includeDeleted: true }).some(b => b.id === p.bookId && !b.completed))) throw new Error("Finish the existing weekly commitment first; its deadline is unchanged.");
   saveBooks(books.map(b => b.id === bookId ? { ...b, progressMode: "percentage", currentPercent: startingPercent ?? bookPercent(b), currentPage: b.currentPage, voiceTotalMinutes: totalMinutes, voiceReferenceWpm: referenceWpm, voiceWpm: b.voiceWpm ?? referenceWpm } : b));
   if (!plan) startPercentageCommitment(bookId, startingPercent);
   else if (plan.unit !== "percentage") usePercentageCommitment(bookId, book.totalPages);
