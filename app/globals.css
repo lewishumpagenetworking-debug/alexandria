@@ -926,3 +926,19 @@ dialog::backdrop { background: rgba(6, 5, 4, .76); backdrop-filter: blur(4px); }
   .notes-section-head { align-items: flex-start; flex-direction: column; }
   .danger-btn { width: 100%; }
 }
+
+
+.book-note-admin {
+  border: 1px solid rgba(205, 92, 78, .48);
+  background: rgba(97, 39, 32, .16);
+  padding: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+}
+.book-note-admin strong { font: 600 20px var(--serif); color: #f3dfd9; }
+.book-note-admin p { margin: 4px 0 0; }
+@media (max-width: 760px) {
+  .book-note-admin { grid-template-columns: 1fr; }
+}

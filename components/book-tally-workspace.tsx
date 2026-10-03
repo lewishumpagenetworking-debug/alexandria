@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createBook, loadBooks, loadLogs, saveBooks, setBookState, updateBookDetails, type StoredBook } from "@/lib/application-store";
 import { bookPercent, startPercentageCommitment, progressLabel, executionStatus, listCommitments, startCommitment } from "@/lib/reading-execution";
 import { addHighlight, getHighlightsForSource } from "@/lib/library-notes-store";
+import { clearBookKnowledge, deleteBookHighlight } from "@/lib/book-note-removal";
 import { registerCard } from "@/lib/retrieval-store";
 import { ImportNotesWorkspace } from "@/components/import-notes-workspace";
 import { DailyBookWorkflow } from "@/components/daily-book-workflow";
@@ -60,6 +61,19 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
       setCreating(false); setEditing(false); setMessage(editing ? "Book saved. Its tracking format is applied below." : "Book folder created. Start reading and add notes as you go.");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save this book."); }
   }
+  function removeOneSavedNote(noteId: string) {
+    if (!selected || !window.confirm("Delete this saved note from the book? Its linked interpretation, book-specific principle, and review card will also be removed.")) return;
+    const result = deleteBookHighlight(selected.id, noteId);
+    setMessage(`Deleted ${result.highlightsRemoved} saved note and cleaned linked learning data.`);
+  }
+  function removeAllSavedNotes() {
+    if (!selected) return;
+    const confirmed = window.confirm(`Delete every note attached to "${selected.title}"?\n\nThis removes highlights, interpretations, principles, imported questions, and their review state. The book, reading progress, reading history, and commitment history stay intact.\n\nYou would need to re-import the notes to restore them.`);
+    if (!confirmed) return;
+    const result = clearBookKnowledge(selected.id);
+    setMessage(`Deleted ${result.highlightsRemoved} highlights, ${result.interpretationsRemoved} interpretations, and ${result.principlesRemoved + result.principlesDetached} principle links from this book.`);
+  }
+
   function changeState(action: "archive" | "unarchive" | "delete" | "restore") {
     if (!selected) return;
     setBookState(selected.id, action); setSelectedId(""); setDeleteId(""); setEditing(false);
@@ -104,7 +118,7 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
       <h3 className="top-gap">{selected.title}</h3><p className="meta">{selected.author} · {BOOK_CATEGORIES[selected.category ?? "general"]} · {selected.progressMode === "percentage" ? progressLabel(selected) : selected.totalPages > 1 ? `${selected.currentPage} / ${selected.totalPages} pages` : "Choose pages or percentage tracking below"}</p>
       <div className="button-row top-gap">
         {!selected.deletedAt && <button className="small-btn" onClick={() => { setEditing(true); setForm({ ...blank(), category: selected.category ?? "general", title: selected.title, author: selected.author, totalPages: selected.totalPages > 1 ? String(selected.totalPages) : "", currentPage: String(selected.currentPage), progressMode: selected.progressMode ?? "pages", currentPercent: String(bookPercent(selected)), hours: selected.voiceTotalMinutes ? String(Math.floor(selected.voiceTotalMinutes / 60)) : "", durationMinutes: selected.voiceTotalMinutes ? String(selected.voiceTotalMinutes % 60) : "0", wpm: String(selected.voiceReferenceWpm ?? 150) }); }}>Edit Book</button>}
-        {selected.deletedAt ? <button className="small-btn primary" onClick={() => changeState("restore")}>Restore Book</button> : <><button className="small-btn" onClick={() => changeState(selected.archivedAt ? "unarchive" : "archive")}>{selected.archivedAt ? "Unarchive Book" : "Archive Book"}</button><button className="small-btn" onClick={() => setDeleteId(selected.id)}>Delete Book</button></>}
+        {selected.deletedAt ? <button className="small-btn primary" onClick={() => changeState("restore")}>Restore Book</button> : <><button className="small-btn" onClick={() => changeState(selected.archivedAt ? "unarchive" : "archive")}>{selected.archivedAt ? "Unarchive Book" : "Archive Book"}</button><button className="small-btn danger-outline-btn" disabled={notes.length === 0 && selected.highlights.length === 0 && selected.principles === 0} onClick={removeAllSavedNotes}>Delete book notes</button><button className="small-btn" onClick={() => setDeleteId(selected.id)}>Delete Book</button></>}
       </div>
       {deleteId === selected.id && <div className="card top-gap" role="alert"><p>Move “{selected.title}” to Trash? Its page history, notes and breakdown will remain recoverable.</p><div className="button-row"><button className="small-btn primary" onClick={() => changeState("delete")}>Move to Trash</button><button className="small-btn" onClick={() => setDeleteId("")}>Keep Book</button></div></div>}
       <p className="meta top-gap">Daily requirement: {selected.progressMode === "percentage" ? "14.29 percentage points (100 ÷ 7)" : selected.totalPages > 1 ? `${Number((selected.totalPages / 7).toFixed(2))} pages (${selected.totalPages} ÷ 7)` : "Set up pages or percentage tracking below"}.</p>
@@ -127,7 +141,14 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
       </>}
       {!selected.deletedAt && !selected.archivedAt && <details className="top-gap"><summary>Import existing notes later (optional)</summary><p className="meta">Your folder and reading tracker work without an import. When you have notes to upload, you can add them to this book here.</p><button className="small-btn" onClick={() => setImporting(true)}>Import notes into this book</button></details>}
       <details className="top-gap"><summary>Reading history ({logs.filter(log => log.bookId === selected.id).length} sessions)</summary>{logs.filter(log => log.bookId === selected.id).map(log => <p className="meta" key={log.id}>{log.date} · {log.progressPercent !== undefined ? `+${log.progressPercent} percentage points (${log.fromPercent}% → ${log.toPercent}%)` : `${log.pages} pages`} · {log.minutes} minutes{log.method ? ` · ${log.method}` : ""}{log.voiceWpm ? ` · ${log.voiceWpm} WPM` : ""}{log.estimatedMinutes !== undefined ? ` · estimated ${Math.ceil(log.estimatedMinutes)} minutes` : ""}{log.audioSpeed ? ` · ${log.audioSpeed}× audio` : ""}</p>)}</details>
-      <details className="top-gap"><summary>Saved notes ({notes.length})</summary>{notes.map(item => <div className="note-item" key={item.id}><span className="kicker">{item.location || "Note"}</span><p>{item.text}</p></div>)}</details>
+      <details className="top-gap" open={notes.length > 0}><summary>Saved notes ({notes.length}) · manage / delete</summary>
+        <div className="book-note-admin top-gap">
+          <div><strong>Manage saved notes</strong><p className="meta">Delete one note below, or clear the entire book’s imported knowledge. Reading progress and reading history are preserved.</p></div>
+          <button className="danger-btn" disabled={notes.length === 0 && selected.highlights.length === 0 && selected.principles === 0} onClick={removeAllSavedNotes}>Delete all notes from this book</button>
+        </div>
+        {notes.length === 0 && <p className="meta top-gap">{selected.highlights.length > 0 || selected.principles > 0 ? "Older note data is attached to this book. Use the delete-all button above to clear it." : "No saved notes are attached to this book."}</p>}
+        {notes.map(item => <div className="note-item managed-note-item" key={item.id}><div className="card-head"><span className="kicker">{item.location || "Note"}</span><button className="danger-link-btn" onClick={() => removeOneSavedNote(item.id)}>Delete note</button></div><p>{item.text}</p></div>)}
+      </details>
       {!selected.deletedAt && <BookMetaPage key={selected.id} book={selected} />}
     </section>}
   </article>;
