@@ -867,3 +867,62 @@ dialog::backdrop { background: rgba(6, 5, 4, .76); backdrop-filter: blur(4px); }
 @media (max-width: 860px) {
   .curriculum-grid { grid-template-columns: 1fr; }
 }
+
+
+/* Explicit note-management / destructive controls */
+.note-management-panel {
+  border: 1px solid rgba(205, 92, 78, .55);
+  background: linear-gradient(145deg, rgba(76, 34, 29, .32), rgba(39, 27, 24, .9));
+  padding: 22px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 22px;
+  align-items: center;
+}
+.note-management-panel h2 { margin: 0 0 8px; font: 600 27px/1.1 var(--serif); }
+.note-management-panel p { margin: 6px 0; }
+.note-management-actions { display: grid; gap: 8px; justify-items: stretch; min-width: min(320px, 100%); }
+.danger-kicker { color: #f09a8f; }
+.danger-btn,
+.danger-outline-btn,
+.danger-link-btn {
+  border: 1px solid #cf6a5d;
+  color: #ffd8d2;
+  background: rgba(151, 54, 44, .16);
+  font-weight: 700;
+}
+.danger-btn {
+  padding: 11px 14px;
+  min-height: 42px;
+}
+.danger-outline-btn { color: #f1a297; }
+.danger-link-btn {
+  margin-left: auto;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+.danger-btn:hover,
+.danger-outline-btn:hover,
+.danger-link-btn:hover {
+  background: rgba(177, 63, 51, .34);
+  border-color: #ef8d80;
+  color: #fff3f0;
+}
+.danger-btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.notes-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: end;
+}
+.notes-section-head h2 { margin: 0; font: 600 26px/1.1 var(--serif); }
+.managed-note-item { border-left-color: rgba(205, 92, 78, .65); }
+@media (max-width: 760px) {
+  .note-management-panel { grid-template-columns: 1fr; }
+  .note-management-actions { min-width: 0; }
+  .notes-section-head { align-items: flex-start; flex-direction: column; }
+  .danger-btn { width: 100%; }
+}
