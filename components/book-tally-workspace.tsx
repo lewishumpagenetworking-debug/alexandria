@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createBook, loadBooks, loadLogs, saveBooks, setBookState, updateBookDetails, type StoredBook } from "@/lib/application-store";
-import { bookPercent, startPercentageCommitment, progressLabel, executionStatus, listCommitments, startCommitment } from "@/lib/reading-execution";
+import { bookPercent, startPercentageCommitment, restartPercentageCommitment, progressLabel, executionStatus, listCommitments, startCommitment, restartCommitment, stopCommitment, updateCommitmentTarget } from "@/lib/reading-execution";
 import { addHighlight, getHighlightsForSource } from "@/lib/library-notes-store";
 import { clearBookKnowledge, deleteBookHighlight } from "@/lib/book-note-removal";
 import { registerCard } from "@/lib/retrieval-store";
@@ -53,7 +53,11 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
     try {
       const voiceTotalMinutes = form.hours.trim() || Number(form.durationMinutes) ? Number(form.hours) * 60 + Number(form.durationMinutes) : undefined;
       const tracking = { category: form.category, progressMode: form.progressMode, currentPercent: form.progressMode === "percentage" ? Number(form.currentPercent) : undefined, voiceTotalMinutes: form.progressMode === "percentage" ? voiceTotalMinutes : undefined, voiceReferenceWpm: form.progressMode === "percentage" ? Number(form.wpm) : undefined };
-      if (editing && selected) updateBookDetails(selected.id, { title: form.title, author: form.author, totalPages: form.totalPages.trim() ? Number(form.totalPages) : undefined, ...tracking });
+      if (editing && selected) {
+        const nextTotal = form.totalPages.trim() ? Number(form.totalPages) : undefined;
+        updateBookDetails(selected.id, { title: form.title, author: form.author, totalPages: nextTotal, ...tracking });
+        if (plan && selected.progressMode !== "percentage" && nextTotal && Number.isInteger(nextTotal)) updateCommitmentTarget(selected.id, nextTotal);
+      }
       else {
         const book = createBook({ title: form.title, author: form.author, totalPages: form.totalPages.trim() ? Number(form.totalPages) : undefined, currentPage: form.progressMode === "pages" ? Number(form.currentPage) : 0, ...tracking });
         setShelf("books"); setSelectedId(book.id);
@@ -96,13 +100,13 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
       }}><option value="pages">Physical book · pages</option><option value="percentage">Voice Dream · percentage (0–100%)</option></select></label>
       <label>Author <span className="optional">optional</span><input value={form.author} onChange={event => setForm({ ...form, author: event.target.value })} /></label>
       {form.progressMode === "percentage" ? <>
-        <label>{editing ? "Saved percentage" : "Starting percentage"}<input required type="number" min="0" max={editing ? "100" : "99.99"} step="any" disabled={editing && (!!plan || logs.some(log => log.bookId === selected?.id))} value={form.currentPercent} onChange={event => setForm({ ...form, currentPercent: event.target.value })} /></label>
+        <label>{editing ? "Saved percentage" : "Starting percentage"}<input required type="number" min="0" max={editing ? "100" : "99.99"} step="any" value={form.currentPercent} onChange={event => setForm({ ...form, currentPercent: event.target.value })} /></label>
         <label>Full-book hours <span className="optional">can be added later</span><input type="number" min="0" step="1" value={form.hours} onChange={event => setForm({ ...form, hours: event.target.value })} /></label>
         <label>Additional minutes<input type="number" min="0" max="59" step="any" value={form.durationMinutes} onChange={event => setForm({ ...form, durationMinutes: event.target.value })} /></label>
         <label>WPM for this displayed duration<input required type="number" min="1" step="any" value={form.wpm} onChange={event => setForm({ ...form, wpm: event.target.value })} /></label>
         <p className="meta form-span">Voice Dream format: 0% → 100%. Daily requirement: 100 ÷ 7 ≈ 14.29 percentage points. Enter the full-book duration displayed at this WPM, not time remaining. Changing session WPM adjusts estimated time, while the percentage target stays fixed. Starting progress is a baseline, not a reading session.</p>
       </> : <>
-        <label>Total pages <span className="optional">can be added later</span><input type="number" min="2" step="1" disabled={editing && !!plan && (selected?.totalPages ?? 1) > 1} value={form.totalPages} onChange={event => setForm({ ...form, totalPages: event.target.value })} /></label>
+        <label>Total pages <span className="optional">can be corrected anytime</span><input type="number" min="2" step="1" value={form.totalPages} onChange={event => setForm({ ...form, totalPages: event.target.value })} /></label>
         {!editing && <label>Starting page<input type="number" min="0" max={form.totalPages ? Math.max(0, Number(form.totalPages) - 1) : 0} step="1" value={form.currentPage} onChange={event => setForm({ ...form, currentPage: event.target.value })} /></label>}
         <p className="meta form-span">{Number(form.totalPages) > 1 ? `${form.totalPages} ÷ 7 = ${Number((Number(form.totalPages) / 7).toFixed(2))} pages per day.` : "Add the page count when you are ready to set the seven-day target."} Starting progress is a baseline. Log reading below to update your progress.</p>
       </>}
@@ -121,15 +125,25 @@ export function BookTallyWorkspace({ onBack, initiallyCreate = false, initialBoo
         {selected.deletedAt ? <button className="small-btn primary" onClick={() => changeState("restore")}>Restore Book</button> : <><button className="small-btn" onClick={() => changeState(selected.archivedAt ? "unarchive" : "archive")}>{selected.archivedAt ? "Unarchive Book" : "Archive Book"}</button><button className="small-btn danger-outline-btn" disabled={notes.length === 0 && selected.highlights.length === 0 && selected.principles === 0} onClick={removeAllSavedNotes}>Delete book notes</button><button className="small-btn" onClick={() => setDeleteId(selected.id)}>Delete Book</button></>}
       </div>
       {deleteId === selected.id && <div className="card top-gap" role="alert"><p>Move “{selected.title}” to Trash? Its page history, notes and breakdown will remain recoverable.</p><div className="button-row"><button className="small-btn primary" onClick={() => changeState("delete")}>Move to Trash</button><button className="small-btn" onClick={() => setDeleteId("")}>Keep Book</button></div></div>}
-      <p className="meta top-gap">Daily requirement: {selected.progressMode === "percentage" ? "14.29 percentage points (100 ÷ 7)" : selected.totalPages > 1 ? `${Number((selected.totalPages / 7).toFixed(2))} pages (${selected.totalPages} ÷ 7)` : "Set up pages or percentage tracking below"}.</p>
+      <p className="meta top-gap">Daily target for this book: {selected.progressMode === "percentage" ? "14.29 percentage points (100 ÷ 7)" : selected.totalPages > 1 ? `${Number((selected.totalPages / 7).toFixed(2))} pages (${selected.totalPages} ÷ 7)` : "Set up pages or percentage tracking below"}. This is guidance, not a lock on other books.</p>
       {status && <p className="saved-note">Day {status.day} / 7 · reach {Number(status.pageTarget.toFixed(2))}{plan?.unit === "percentage" ? "%" : " pages"} · deadline {status.deadline} · {status.finished ? "Reading finished" : status.overdue ? "Deadline missed" : `${Number(status.remainingToday.toFixed(2))} ${plan?.unit === "percentage" ? "percentage points" : "pages"} still required today`}</p>}
       {selected.archivedAt || selected.deletedAt ? <p className="meta">Restore this book to resume logging. Existing commitments keep their original deadline.</p> : <>
-        {!plan && !selected.completed && <button className="small-btn primary top-gap" onClick={() => {
-          const unfinished = plans.find(item => { const book = books.find(b => b.id === item.bookId); return book && !book.completed; });
+        {!selected.completed && !plan && <button className="small-btn primary top-gap" onClick={() => {
           if (selected.progressMode !== "percentage" && selected.totalPages <= 1) { setMessage("Edit Book to enter the actual total pages before starting."); return; }
-          if (unfinished) { setMessage("Finish your existing seven-day commitment first. Restore its book if it is archived or in Trash."); return; }
-          try { if (selected.progressMode === "percentage") startPercentageCommitment(selected.id, bookPercent(selected)); else startCommitment(selected.id, selected.totalPages); setMessage("Seven-day commitment started today."); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not start the commitment."); }
-        }}>Begin seven-day commitment →</button>}
+          try { if (selected.progressMode === "percentage") startPercentageCommitment(selected.id, bookPercent(selected)); else startCommitment(selected.id, selected.totalPages); setMessage("Seven-day target started. Other books can be tracked at the same time."); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not start the commitment."); }
+        }}>Begin seven-day target →</button>}
+        {!selected.completed && plan && <div className="button-row top-gap">
+          <button className="small-btn" onClick={() => {
+            if (!window.confirm("Restart this book’s seven-day target from today? Existing reading logs stay intact; the target start date resets.")) return;
+            if (selected.progressMode === "percentage") restartPercentageCommitment(selected.id, bookPercent(selected)); else restartCommitment(selected.id, selected.totalPages);
+            setMessage("Seven-day target restarted from today.");
+          }}>Restart 7-day target</button>
+          <button className="small-btn" onClick={() => {
+            if (!window.confirm("Stop weekly tracking for this book? The book, notes, progress, and reading logs stay intact.")) return;
+            stopCommitment(selected.id);
+            setMessage("Weekly tracking stopped for this book. You can start another target whenever you want.");
+          }}>Stop weekly tracking</button>
+        </div>}
         <div className="top-gap"><DailyBookWorkflow key={selected.id} sourceId={selected.id} /></div>
         <details className="top-gap"><summary>Add another quote or note (optional)</summary><form className="form-grid top-gap" onSubmit={event => {
           event.preventDefault(); if (!note.trim()) return;
