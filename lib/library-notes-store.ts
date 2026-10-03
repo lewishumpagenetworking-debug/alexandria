@@ -54,3 +54,93 @@ export const getPrinciplesForSource = (sourceId: string) => listPrinciples().fil
 export const getPrinciplesForHighlight = (highlightId: string) => listPrinciples().filter((item) => item.highlightId === highlightId);
 
 export const getPrinciplesForHall = (hallId: string) => listPrinciples().filter((item) => item.hallIds?.includes(hallId));
+
+
+export interface SourceNoteRemovalResult {
+  highlightIds: string[];
+  principleIds: string[];
+  interpretationsRemoved: number;
+  principlesDetached: number;
+}
+
+function emptyRemoval(): SourceNoteRemovalResult {
+  return { highlightIds: [], principleIds: [], interpretationsRemoved: 0, principlesDetached: 0 };
+}
+
+/** Removes one highlight plus its book-specific interpretation and principle links. */
+export function removeHighlightFromSource(sourceId: string, highlightId: string): SourceNoteRemovalResult {
+  const highlight = listHighlights().find((item) => item.id === highlightId && item.sourceId === sourceId);
+  if (!highlight) return emptyRemoval();
+
+  const interpretations = listInterpretations();
+  const principles = listPrinciples();
+  const linkedPrinciples = principles.filter((item) => item.highlightId === highlightId || item.sourceIds.includes(sourceId) && item.highlightId === highlightId);
+  const result: SourceNoteRemovalResult = {
+    highlightIds: [highlightId],
+    principleIds: [],
+    interpretationsRemoved: interpretations.filter((item) => item.highlightId === highlightId || item.sourceId === sourceId && item.highlightId === highlightId).length,
+    principlesDetached: 0,
+  };
+
+  write(HIGHLIGHTS_KEY, listHighlights().filter((item) => item.id !== highlightId));
+  write(INTERPRETATIONS_KEY, interpretations.filter((item) => item.highlightId !== highlightId));
+
+  const nextPrinciples = principles.flatMap((item) => {
+    if (!linkedPrinciples.some((linked) => linked.id === item.id)) return [item];
+    const remainingSources = item.sourceIds.filter((id) => id !== sourceId);
+    if (remainingSources.length === 0) {
+      result.principleIds.push(item.id);
+      return [];
+    }
+    result.principlesDetached++;
+    return [{ ...item, sourceIds: remainingSources, highlightId: undefined }];
+  });
+  write(PRINCIPLES_KEY, nextPrinciples);
+  return result;
+}
+
+/** Detaches a principle from one source; deletes it only when no source remains. */
+export function removePrincipleFromSource(sourceId: string, principleId: string): SourceNoteRemovalResult {
+  const principles = listPrinciples();
+  const principle = principles.find((item) => item.id === principleId && item.sourceIds.includes(sourceId));
+  if (!principle) return emptyRemoval();
+  const remainingSources = principle.sourceIds.filter((id) => id !== sourceId);
+  if (remainingSources.length === 0) {
+    write(PRINCIPLES_KEY, principles.filter((item) => item.id !== principleId));
+    return { ...emptyRemoval(), principleIds: [principleId] };
+  }
+  write(PRINCIPLES_KEY, principles.map((item) => item.id === principleId
+    ? { ...item, sourceIds: remainingSources, highlightId: item.highlightId && getHighlightsForSource(sourceId).some((highlight) => highlight.id === item.highlightId) ? undefined : item.highlightId }
+    : item));
+  return { ...emptyRemoval(), principlesDetached: 1 };
+}
+
+/** Clears all rich notes assigned to a source while preserving principles that are shared with other sources. */
+export function clearNotesForSource(sourceId: string): SourceNoteRemovalResult {
+  const highlights = listHighlights();
+  const interpretations = listInterpretations();
+  const principles = listPrinciples();
+  const sourceHighlightIds = new Set(highlights.filter((item) => item.sourceId === sourceId).map((item) => item.id));
+  const result: SourceNoteRemovalResult = {
+    highlightIds: [...sourceHighlightIds],
+    principleIds: [],
+    interpretationsRemoved: interpretations.filter((item) => item.sourceId === sourceId || (item.highlightId ? sourceHighlightIds.has(item.highlightId) : false)).length,
+    principlesDetached: 0,
+  };
+
+  write(HIGHLIGHTS_KEY, highlights.filter((item) => item.sourceId !== sourceId));
+  write(INTERPRETATIONS_KEY, interpretations.filter((item) => item.sourceId !== sourceId && !(item.highlightId && sourceHighlightIds.has(item.highlightId))));
+
+  const nextPrinciples = principles.flatMap((item) => {
+    if (!item.sourceIds.includes(sourceId)) return [item];
+    const remainingSources = item.sourceIds.filter((id) => id !== sourceId);
+    if (remainingSources.length === 0) {
+      result.principleIds.push(item.id);
+      return [];
+    }
+    result.principlesDetached++;
+    return [{ ...item, sourceIds: remainingSources, highlightId: item.highlightId && sourceHighlightIds.has(item.highlightId) ? undefined : item.highlightId }];
+  });
+  write(PRINCIPLES_KEY, nextPrinciples);
+  return result;
+}

@@ -129,3 +129,15 @@ export function recordKnowledgeEngagement(refType: RetrievalRefType, refId: stri
   write(CARDS_KEY, cards.map((item) => item.id === card.id ? updated : item));
   return updated;
 }
+
+
+/** Removes spaced-review cards for knowledge items that have been deleted or detached. */
+export function removeCardsByRefs(refs: Array<{ refType: RetrievalRefType; refId: string }>): number {
+  if (!refs.length) return 0;
+  const keys = new Set(refs.map((ref) => `${ref.refType}:${ref.refId}`));
+  const cards = listCards();
+  const next = cards.filter((card) => !keys.has(`${card.refType}:${card.refId}`));
+  const removed = cards.length - next.length;
+  if (removed > 0) write(CARDS_KEY, next);
+  return removed;
+}

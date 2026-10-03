@@ -18,6 +18,7 @@ import { BookTallyWorkspace } from "@/components/book-tally-workspace";
 import { bookPercent, progressLabel, validateReading } from "@/lib/reading-execution";
 import { ImportNotesWorkspace } from "@/components/import-notes-workspace";
 import { CurriculumBookshelf } from "@/components/curriculum-bookshelf";
+import { clearBookKnowledge, deleteBookHighlight, deleteBookPrinciple } from "@/lib/book-note-removal";
 
 const maturity = ["Collected", "Understood", "Interrogated", "Reduced", "Rebuilt", "Applied", "Tested", "Integrated"];
 
@@ -61,6 +62,7 @@ export function LibraryView() {
   const [studyReasoning, setStudyReasoning] = useState<{ interrogation?: string[]; reduce?: Record<string, string>; rebuild?: Record<string, string>; agora?: string }>({});
   const [manageLibrary, setManageLibrary] = useState(false);
   const [manageBooks, setManageBooks] = useState<"new" | "manage" | null>(null);
+  const [noteRemovalMessage, setNoteRemovalMessage] = useState("");
   useEffect(() => {
     const sync = () => { const next = loadBooks(); setBooks(next); setSelected(prior => prior ? next.find(book => book.id === prior.id) ?? null : null); };
     sync(); window.addEventListener("alexandria:data", sync);
@@ -82,6 +84,26 @@ export function LibraryView() {
   if (manageBooks) return <section className="view active"><div className="content"><BookTallyWorkspace initiallyCreate={manageBooks === "new"} onBack={() => setManageBooks(null)} /></div></section>;
 
   if (manageLibrary) return <ImportNotesWorkspace initialSourceId={selected?.id ?? ""} onBack={() => { setManageLibrary(false); setBooks(loadBooks()); }} onComplete={() => { setManageLibrary(false); setBooks(loadBooks()); }} />;
+
+  function removeHighlight(highlightId: string) {
+    if (!selected || !window.confirm("Remove this note from the book? Its linked interpretation, book-specific principle, and review card will also be removed.")) return;
+    const result = deleteBookHighlight(selected.id, highlightId);
+    setNoteRemovalMessage(`Removed ${result.highlightsRemoved} note${result.highlightsRemoved === 1 ? "" : "s"} and cleaned linked learning data.`);
+  }
+
+  function removePrinciple(principleId: string) {
+    if (!selected || !window.confirm("Remove this principle from the book? If it is shared with another source, Alexandria will only detach this book.")) return;
+    const result = deleteBookPrinciple(selected.id, principleId);
+    setNoteRemovalMessage(result.principlesDetached ? "Principle detached from this book; the shared principle was preserved elsewhere." : "Principle removed from this book and its review card cleaned up.");
+  }
+
+  function clearAllBookNotes() {
+    if (!selected) return;
+    const confirmed = window.confirm(`Remove all notes attached to "${selected.title}"?\n\nThis removes highlights, interpretations, principles, imported questions, and their review state. The book itself, reading progress, reading logs, and reading commitment history will be preserved.\n\nYou would need to re-import the notes to restore them.`);
+    if (!confirmed) return;
+    const result = clearBookKnowledge(selected.id);
+    setNoteRemovalMessage(`Cleared ${result.highlightsRemoved} highlights, ${result.interpretationsRemoved} interpretations, and ${result.principlesRemoved + result.principlesDetached} principle links from this book.`);
+  }
 
   function advanceStudy(result: Exclude<StepResult, { exerciseType: "recall-check" }>, label: string) {
     if (!selected) return;
@@ -134,13 +156,15 @@ export function LibraryView() {
       <div className="button-row top-gap">
         <button className="small-btn primary" disabled={!canStudy} onClick={startStudy}>▶ Dissect a quote / principle</button>
         <button className="small-btn" onClick={() => setManageLibrary(true)}>⇪ Add / import notes</button>
+        {canStudy && <button className="small-btn remove-btn" onClick={clearAllBookNotes}>Remove all notes</button>}
         {!canStudy && <span className="voice-note">Add or import notes first so Alexandria has material to test.</span>}
       </div>
+      {noteRemovalMessage && <p className="saved-note top-gap" role="status">{noteRemovalMessage}</p>}
       <Rule />
       <div className="notes-list">
         {bookHighlights.length === 0 && bookPrinciples.length === 0 && <div className="empty"><strong>No notes yet.</strong><span>Your book is ready. Add quotes as you read, or import notes later.</span><div className="top-gap"><button className="small-btn primary" onClick={() => setManageLibrary(true)}>Add / import notes</button></div></div>}
-        {bookHighlights.map((highlight) => <div className="note-item" key={highlight.id}><div className="kicker">Highlight{highlight.location ? ` · ${highlight.location}` : ""}</div><p>{highlight.text}</p></div>)}
-        {bookPrinciples.map((principle) => <div className="note-item" key={principle.id}><div className="kicker">Principle</div><p>{principle.statement}</p></div>)}
+        {bookHighlights.map((highlight) => <div className="note-item" key={highlight.id}><div className="card-head"><div className="kicker">Highlight{highlight.location ? ` · ${highlight.location}` : ""}</div><button className="remove-btn" onClick={() => removeHighlight(highlight.id)} aria-label={`Remove highlight from ${selected.title}`}>× Remove</button></div><p>{highlight.text}</p></div>)}
+        {bookPrinciples.map((principle) => <div className="note-item" key={principle.id}><div className="card-head"><div className="kicker">Principle</div><button className="remove-btn" onClick={() => removePrinciple(principle.id)} aria-label={`Remove principle from ${selected.title}`}>× Remove</button></div><p>{principle.statement}</p></div>)}
       </div>
     </div></section>;
   }

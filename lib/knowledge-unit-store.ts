@@ -159,3 +159,15 @@ export function recordKnowledgeAttempt(unitId: string, attempt: Omit<KnowledgeAt
   });
   return saved;
 }
+
+
+/** Removes Sculptor overlays for deleted highlights so stale attempts cannot survive a source correction. */
+export function removeKnowledgeUnitOverlaysByHighlightIds(highlightIds: string[]): number {
+  if (!highlightIds.length) return 0;
+  const ids = new Set(highlightIds.map((id) => `ku:${id}`));
+  const overlays = readOverlays();
+  const next = overlays.filter((item) => !ids.has(item.knowledgeUnitId));
+  const removed = overlays.length - next.length;
+  if (removed > 0) writeOverlays(next);
+  return removed;
+}

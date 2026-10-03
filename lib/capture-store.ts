@@ -20,3 +20,13 @@ export function saveCapture(draft: Omit<CaptureDraft, "id" | "createdAt">): Capt
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify([capture, ...listCaptures()].slice(0, 50)));
   return capture;
 }
+
+
+/** Removes imported question captures assigned to a book. Manual captures are preserved. */
+export function removeImportedCapturesForBook(bookTitle: string): number {
+  const captures = listCaptures();
+  const next = captures.filter((item) => !(item.inputSource === "import" && item.relatedBook === bookTitle));
+  const removed = captures.length - next.length;
+  if (removed > 0) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  return removed;
+}
