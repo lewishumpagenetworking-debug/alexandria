@@ -12,7 +12,7 @@ const memory = new Map();
 const localStorage = { getItem: key => memory.get(key) || null, setItem: (key, value) => memory.set(key, value) };
 const execution = load('lib/reading-execution.ts');
 const store = load('lib/application-store.ts');
-const { executionStatus, shiftDay, londonDay, validateReading, startCommitment, listCommitments } = execution;
+const { executionStatus, shiftDay, londonDay, validateReading, startCommitment, restartCommitment, stopCommitment, listCommitments } = execution;
 for (const total of [1, 2, 100, 350, 351, 999]) {
   const plan = { bookId: 'b', totalPages: total, startDate: '2026-09-30' };
   const book = { id: 'b', currentPage: 0, totalPages: total };
@@ -39,19 +39,26 @@ assert.equal(validateReading(book, 51), null);
 startCommitment('b', 350);
 assert.equal(listCommitments().length, 1);
 assert.throws(() => startCommitment('b', 350));
+startCommitment('c', 210);
+assert.equal(listCommitments().length, 2, 'Multiple books may be tracked at the same time');
+restartCommitment('b', 360);
+assert.equal(listCommitments().find(plan => plan.bookId === 'b').totalPages, 360);
+stopCommitment('c');
+assert.equal(listCommitments().length, 1);
 assert.throws(() => startCommitment('c', 0));
 store.saveBooks([{ ...book, completed: false }]);
 store.saveBooks([{ ...book, currentPage: 350, completed: false }]);
 assert.equal(store.loadBooks()[0].completed, true);
 assert.ok(store.loadBooks()[0].readingFinishedAt);
-console.log('Passed: seven-day quotas, rounding, London dates, deadlines, book-specific credit, immutable start, input bounds and completion timestamp.');
+console.log('Passed: seven-day pacing, London dates, book-specific credit, concurrent targets, restart/stop overrides, input bounds and completion timestamp.');
 
 // Book lifecycle must preserve source IDs, old work and hidden books during ordinary shelf saves.
 memory.clear();
 const notesStore = load('lib/library-notes-store.ts');
 assert.throws(() => store.createBook({title:'  ',totalPages:350}));
 assert.throws(() => store.createBook({title:'Bad pages',totalPages:2.5}));
-assert.throws(() => store.createBook({title:'Bad baseline',totalPages:350,currentPage:350}));
+const completedAtCreation = store.createBook({title:'Already read',totalPages:350,currentPage:350});
+assert.equal(completedAtCreation.completed,true,'A personal library may add a book already completed');
 const first = store.createBook({title:'  A Life  ',author:'  Author  ',totalPages:350,currentPage:20});
 const second = store.createBook({title:'A Life',totalPages:210});
 assert.notEqual(first.id,second.id);
@@ -64,7 +71,9 @@ store.updateBookDetails(first.id,{title:'Updated title',author:'Author',totalPag
 assert.equal(store.loadLogs()[0].bookTitle,'Updated title');
 assert.equal(notesStore.listHighlights()[0].sourceId,first.id);
 startCommitment(first.id,350);
-assert.throws(()=>store.updateBookDetails(first.id,{title:'Updated title',author:'Author',totalPages:351}));
+store.updateBookDetails(first.id,{title:'Updated title',author:'Author',totalPages:351});
+assert.equal(store.loadBooks({includeArchived:true,includeDeleted:true}).find(b=>b.id===first.id).totalPages,351);
+assert.equal(listCommitments().find(plan=>plan.bookId===first.id).totalPages,351,'Correcting total pages updates the active pacing target');
 const staleShelf=store.loadBooks();
 store.setBookState(first.id,'archive');
 assert.equal(store.loadBooks().length,1);
@@ -85,7 +94,7 @@ assert.equal(store.loadBooks().length,1, 'Restoring a deleted archive entry must
 store.setBookState(first.id,'unarchive');
 assert.equal(store.loadBooks().length,2);
 assert.equal(store.loadBooks().find(b=>b.id===first.id).title,'Updated title');
-console.log('Passed: direct creation, distinct IDs, baseline, metadata edits, fixed totals, archive/trash/restore, stale shelf safety and preserved notes/logs/commitments.');
+console.log('Passed: direct creation, completed-book import, distinct IDs, metadata corrections, archive/trash/restore, stale shelf safety and preserved notes/logs/commitments.');
 
 const folder = store.createBook({title:'An unread book'});
 assert.equal(folder.currentPage,0);
