@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { loadBooks, loadLogs, saveBooks } from "@/lib/application-store";
 import { bookPercent, startPercentageCommitment, dailyQuota, logCredit, progressLabel, executionStatus, listCommitments, startCommitment, londonDay, shiftDay } from "@/lib/reading-execution";
 import { BookMetaPage } from "@/components/book-meta-page";
+import { curriculumBookById, curriculumFocusById } from "@/data/curriculum";
+import { loadLearningCampaign } from "@/lib/curriculum-store";
 
 export function WeeklyReading() {
   const [books, setBooks] = useState(() => loadBooks({ includeArchived: true, includeDeleted: true }));
@@ -12,8 +14,9 @@ export function WeeklyReading() {
   const [total, setTotal] = useState("");
   const [message, setMessage] = useState("");
   const [metaId, setMetaId] = useState("");
+  const [campaign, setCampaign] = useState(loadLearningCampaign);
   useEffect(() => {
-    const sync = () => { setBooks(loadBooks({ includeArchived: true, includeDeleted: true })); setLogs(loadLogs()); setPlans(listCommitments()); };
+    const sync = () => { setBooks(loadBooks({ includeArchived: true, includeDeleted: true })); setLogs(loadLogs()); setPlans(listCommitments()); setCampaign(loadLearningCampaign()); };
     sync(); window.addEventListener("alexandria:data", sync); window.addEventListener("storage", sync);
     const timer = window.setInterval(sync, 60000);
     return () => { clearInterval(timer); window.removeEventListener("alexandria:data", sync); window.removeEventListener("storage", sync); };
@@ -27,15 +30,19 @@ export function WeeklyReading() {
   const selectedId = candidates.some(book => book.id === bookId) ? bookId : candidates[0]?.id || "";
   const selectedBook = candidates.find(b => b.id === selectedId);
   const metaBook = books.find(b => b.id === metaId);
+  const campaignFocus = campaign ? curriculumFocusById(campaign.focusId) : undefined;
+  const campaignCapability = campaign ? curriculumBookById(campaign.capabilityBookId) : undefined;
+  const campaignLeader = campaign ? curriculumBookById(campaign.leaderBookId) : undefined;
   const today = londonDay();
   const completedDates = books.flatMap(b => b.readingFinishedAt ? [londonDay(new Date(b.readingFinishedAt))] : []);
   const monthCount = completedDates.filter(date => date.slice(0, 7) === today.slice(0, 7)).length;
   const yearCount = completedDates.filter(date => date.slice(0, 4) === today.slice(0, 4)).length;
   return <article className="card weekly-reading-card">
-    <div className="kicker">Module 1 · Non-negotiable execution</div>
-    <h2>One book. Seven days.</h2>
-    <p className="meta">1 book per week · 4 books per month · 48 books per year</p>
-    <p className="meta top-gap">Verified finishes: {monthCount} / 4 this month · {yearCount} / 48 this year. Older finishes without a completion date are excluded.</p>
+    <div className="kicker">Module 1 · Dual-track execution</div>
+    <h2>One capability sprint. One leader in continuous study.</h2>
+    <p className="meta">Capability books use a seven-day execution target. Leader biographies remain in progress until completed; depth outranks an arbitrary weekly finish.</p>
+    <p className="meta top-gap">Verified finishes: {monthCount} this month · {yearCount} this year. Older finishes without a completion date are excluded.</p>
+    {campaign && campaignFocus && campaignCapability && campaignLeader && <article className="study-thread top-gap"><div className="kicker">Active campaign · {campaignFocus.label}</div><p><strong>Capability:</strong> {campaignCapability.title} · <strong>Leader:</strong> {campaignLeader.title}</p><p className="meta">{campaignFocus.synthesisPrompt}</p></article>}
     {active && book && status ? <>
       <h3 className="top-gap">{book.title}{book.deletedAt ? " · In Trash" : book.archivedAt ? " · Archived" : ""}</h3>
       <div className="reading-tally-stats top-gap">
