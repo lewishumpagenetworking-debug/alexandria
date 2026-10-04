@@ -942,3 +942,83 @@ dialog::backdrop { background: rgba(6, 5, 4, .76); backdrop-filter: blur(4px); }
 @media (max-width: 760px) {
   .book-note-admin { grid-template-columns: 1fr; }
 }
+
+
+/* ── Flashcard-style quote review ── */
+.book-memory-primer {
+  margin: 0 0 18px;
+  border: 1px solid rgba(184,148,82,.34);
+  background: linear-gradient(145deg, rgba(184,148,82,.09), rgba(23,21,18,.78));
+  padding: 18px;
+}
+.book-memory-primer-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+.book-memory-primer-head > div:first-child { display: grid; gap: 3px; }
+.book-memory-primer-head strong { font: 600 20px var(--serif); color: #eadfc8; }
+.book-memory-primer-head span:not(.pill) { color: var(--muted); font-size: 12px; }
+.book-memory-core {
+  margin: 14px 0 0;
+  color: #d8ccb5;
+  font: 500 16px/1.5 var(--serif);
+  max-width: 900px;
+}
+.book-memory-details { margin-top: 12px; }
+.book-memory-details summary { color: var(--bronze-2); font-size: 12px; cursor: pointer; }
+.book-memory-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.book-memory-grid > div {
+  border: 1px solid var(--line);
+  background: rgba(17,15,12,.55);
+  padding: 12px;
+}
+.book-memory-grid span {
+  display: block;
+  color: var(--bronze-2);
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  font-size: 9px;
+  margin-bottom: 5px;
+}
+.book-memory-grid p { margin: 0; color: #bfb39e; font-size: 12px; line-height: 1.5; }
+
+.daily-deck-card { align-items: flex-start; }
+.daily-deck-body { flex: 1; min-width: 0; }
+.daily-deck-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  gap: 14px;
+  align-items: end;
+  margin-top: 14px;
+}
+.daily-deck-controls label,
+.control-label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+.daily-deck-controls select {
+  width: 100%;
+  min-height: 42px;
+  background: #181511;
+  color: var(--paper);
+  border: 1px solid var(--line);
+  padding: 0 10px;
+}
+.daily-deck-controls .constraint-row { margin-top: 6px; }
+
+@media (max-width: 760px) {
+  .book-memory-primer-head { display: grid; }
+  .book-memory-grid { grid-template-columns: 1fr; }
+  .daily-deck-controls { grid-template-columns: 1fr; align-items: stretch; }
+}
