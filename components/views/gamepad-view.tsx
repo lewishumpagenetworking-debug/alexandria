@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getDueRetrievals, type RetrievalQuality } from "@/lib/retrieval-store";
-import { getKnowledgeChallenge, recordSculptorChallengeResult, type SculptorChallenge } from "@/lib/sculptor-challenge-engine";
+import { type RetrievalQuality } from "@/lib/retrieval-store";
+import { getKnowledgeChallenge, getKnowledgeChallengeDeck, recordSculptorChallengeResult, type SculptorChallenge } from "@/lib/sculptor-challenge-engine";
 import { awardPoints, POINTS } from "@/lib/points-store";
 import { getArcadeProgress } from "@/lib/arcade-store";
 import { RecallRally } from "@/components/recall-rally";
 import { SourceReference } from "@/components/source-reference";
+import { BookMemoryPrimer } from "@/components/book-memory-primer";
+import { loadBooks } from "@/lib/application-store";
 
 type GameMode = "menu" | "quiz" | "quiz-result" | "rally";
 
@@ -18,17 +20,31 @@ interface QuizState {
   response: string;
 }
 
-const QUIZ_SIZE = 5;
+const DEFAULT_QUIZ_SIZE = 5;
+type DeckBook = { id: string; title: string; author: string; count: number };
 
 export function GamePadView() {
   const [mode, setMode] = useState<GameMode>("menu");
-  const [dueCount, setDueCount] = useState(0);
   const [quiz, setQuiz] = useState<QuizState>({ challenges: [], index: 0, revealed: false, scores: [], response: "" });
   const [arcade, setArcade] = useState(() => getArcadeProgress());
+  const [deckBooks, setDeckBooks] = useState<DeckBook[]>([]);
+  const [poolCount, setPoolCount] = useState(0);
+  const [selectedSourceId, setSelectedSourceId] = useState("all");
+  const [sessionSize, setSessionSize] = useState(DEFAULT_QUIZ_SIZE);
 
   useEffect(() => {
     const refresh = () => {
-      setDueCount(getDueRetrievals(1).length > 0 ? getDueRetrievals(100).length : 0);
+      const units = getKnowledgeChallengeDeck();
+      const books = loadBooks({ includeArchived: true, includeDeleted: false });
+      const options = books.map((book) => ({
+        id: book.id,
+        title: book.title,
+        author: book.author,
+        count: units.filter((unit) => unit.sourceId === book.id).length,
+      })).filter((book) => book.count > 0);
+      setPoolCount(units.length);
+      setDeckBooks(options);
+      setSelectedSourceId((current) => current === "all" || options.some((book) => book.id === current) ? current : "all");
       setArcade(getArcadeProgress());
     };
     refresh();
@@ -39,12 +55,14 @@ export function GamePadView() {
   function startQuiz() {
     const challenges: SculptorChallenge[] = [];
     const excluded = new Set<string>();
-    for (let i = 0; i < QUIZ_SIZE; i++) {
+    for (let i = 0; i < sessionSize; i++) {
       const challenge = getKnowledgeChallenge({
-        allowedTypes: ["diagnosis", "principle", "boundary", "application", "retrieval"],
-        difficulty: 2 + i,
+        sourceId: selectedSourceId === "all" ? undefined : selectedSourceId,
+        allowedTypes: ["diagnosis"],
+        difficulty: 2,
         excludeUnitIds: excluded,
-        dueOnly: true,
+        dueOnly: false,
+        selectionMode: "shuffle",
       });
       if (!challenge) break;
       challenges.push(challenge);
@@ -90,7 +108,7 @@ export function GamePadView() {
       <section className="view active">
         <div className="content">
           <button className="ghost-btn back-btn" onClick={() => setMode("menu")}>← Exit</button>
-          <div className="eyebrow">Daily Challenge · {quiz.index + 1} of {quiz.challenges.length}</div>
+          <div className="eyebrow">Daily Challenge · shuffled deck · {quiz.index + 1} of {quiz.challenges.length}</div>
 
           <div className="quiz-progress-row">
             {quiz.challenges.map((_, i) => (
@@ -104,10 +122,12 @@ export function GamePadView() {
               <span className="meta">{card.label}</span>
             </div>
 
+            <BookMemoryPrimer sourceId={challenge.unit.sourceId} />
+
             <SourceReference
               label={challenge.unit.sourceTitle}
               text={challenge.unit.quote}
-              note={challenge.unit.location ? `${challenge.unit.location} · Use this exact source as the basis for your answer.` : "Use this exact source as the basis for your answer."}
+              note={challenge.unit.location ? `${challenge.unit.location} · Reconstruct the meaning from the passage and the book context above.` : "Reconstruct the meaning from the passage and the book context above."}
             />
 
             {!quiz.revealed ? (
@@ -117,7 +137,7 @@ export function GamePadView() {
                   className="recall-input"
                   value={quiz.response}
                   onChange={(e) => setQuiz((q) => ({ ...q, response: e.target.value }))}
-                  placeholder="Explain the idea clearly, using the reference above…"
+                  placeholder="What is this really saying? Reconstruct the meaning in your own words…"
                   autoFocus
                 />
                 <div className="button-row">
@@ -172,8 +192,8 @@ export function GamePadView() {
             </p>
             <div className="button-row">
               <button className="small-btn" onClick={() => setMode("menu")}>Back to Game Pad</button>
-              {dueCount > quiz.challenges.length && (
-                <button className="small-btn primary" onClick={startQuiz}>Another round</button>
+              {poolCount > 0 && (
+                <button className="small-btn primary" onClick={startQuiz}>Shuffle another round</button>
               )}
             </div>
           </article>
@@ -196,13 +216,28 @@ export function GamePadView() {
         </div>
 
         <div className="gamepad-grid">
-          <article className={`card game-card${dueCount > 0 ? " available" : " locked"}`} onClick={dueCount > 0 ? startQuiz : undefined}>
+          <article className={`card game-card daily-deck-card${poolCount > 0 ? " available" : " locked"}`}>
             <div className="game-icon">🃏</div>
-            <div>
+            <div className="daily-deck-body">
               <h3>Daily Challenge</h3>
-              <p>{dueCount > 0 ? `${Math.min(dueCount, QUIZ_SIZE)} cards due — test your recall` : "No cards due today. Come back tomorrow."}</p>
+              <p>Flashcard-style quote review. Every imported note stays eligible; choose the whole Library or one book, then shuffle.</p>
+              {poolCount > 0 && <div className="daily-deck-controls">
+                <label>Quote pool
+                  <select value={selectedSourceId} onChange={(event) => setSelectedSourceId(event.target.value)}>
+                    <option value="all">All books · {poolCount} notes</option>
+                    {deckBooks.map((book) => <option key={book.id} value={book.id}>{book.title} · {book.count} notes</option>)}
+                  </select>
+                </label>
+                <div>
+                  <span className="control-label">Cards this session</span>
+                  <div className="constraint-row">
+                    {[1, 5, 10].map((count) => <button type="button" key={count} className={`pill${sessionSize === count ? " active" : ""}`} onClick={() => setSessionSize(count)}>{count}</button>)}
+                  </div>
+                </div>
+                <button className="small-btn primary" onClick={startQuiz}>Shuffle & begin →</button>
+              </div>}
+              {poolCount === 0 && <p className="meta">Import at least one note to build the deck.</p>}
             </div>
-            {dueCount > 0 && <button className="small-btn primary" onClick={startQuiz}>Start →</button>}
           </article>
 
           {(() => {
@@ -253,7 +288,7 @@ export function GamePadView() {
           </div>
         </article>
 
-        {dueCount === 0 && (
+        {poolCount === 0 && (
           <div className="empty-state" style={{ marginTop: 32 }}>
             <div className="empty-icon">🎮</div>
             <h3>Build your deck first</h3>
