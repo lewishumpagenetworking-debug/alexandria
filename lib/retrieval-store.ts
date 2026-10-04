@@ -12,6 +12,11 @@ export interface RetrievalCard {
   dueAt: string;
   lastReviewedAt?: string;
   reviewCount: number;
+  successCount?: number;
+  partialCount?: number;
+  missCount?: number;
+  consecutiveNailed?: number;
+  lastQuality?: RetrievalQuality;
   engagementCount?: number;
   lastEngagedAt?: string;
   priorityWeight?: number;
@@ -82,30 +87,65 @@ export function getDueCount(): number {
   return listCards().filter((card) => card.dueAt <= today).length;
 }
 
-/** SM-2-lite: quality moves the interval and ease factor; a blank review resets the interval. */
+/** Successive-relearning schedule.
+ * Misses return quickly; successful retrievals expand through 1, 3, 7, 14, 30, 60, 120, 240 and 365 days.
+ * The schedule is intentionally transparent and conservative rather than pretending to estimate a precise forgetting curve.
+ */
+const SUCCESS_INTERVALS = [1, 3, 7, 14, 30, 60, 120, 240, 365] as const;
+
 export function recordRetrievalScore(cardId: string, quality: RetrievalQuality): RetrievalCard | undefined {
   const cards = listCards();
   const card = cards.find((item) => item.id === cardId);
   if (!card) return undefined;
 
-  let { easeFactor, intervalDays } = card;
+  let easeFactor = card.easeFactor;
+  let intervalDays = card.intervalDays;
+  let successCount = card.successCount ?? 0;
+  let partialCount = card.partialCount ?? 0;
+  let missCount = card.missCount ?? 0;
+  let consecutiveNailed = card.consecutiveNailed ?? 0;
+
   if (quality === "blank") {
-    easeFactor = Math.max(MIN_EASE, easeFactor - 0.2);
+    easeFactor = Math.max(MIN_EASE, easeFactor - 0.15);
     intervalDays = 1;
+    missCount += 1;
+    consecutiveNailed = 0;
   } else if (quality === "partial") {
     easeFactor = Math.max(MIN_EASE, easeFactor - 0.05);
-    intervalDays = Math.max(1, Math.round(intervalDays * 1.3));
+    intervalDays = successCount >= 3 ? 2 : 1;
+    partialCount += 1;
+    consecutiveNailed = 0;
   } else {
-    easeFactor = Math.min(3, easeFactor + 0.1);
-    intervalDays = Math.max(1, Math.round(intervalDays * easeFactor));
+    easeFactor = Math.min(3, easeFactor + 0.05);
+    successCount += 1;
+    consecutiveNailed += 1;
+    intervalDays = SUCCESS_INTERVALS[Math.min(successCount - 1, SUCCESS_INTERVALS.length - 1)];
   }
 
   const updated: RetrievalCard = {
-    ...card, easeFactor, intervalDays,
-    dueAt: addDays(intervalDays), lastReviewedAt: new Date().toISOString(), reviewCount: card.reviewCount + 1,
+    ...card,
+    easeFactor,
+    intervalDays,
+    successCount,
+    partialCount,
+    missCount,
+    consecutiveNailed,
+    lastQuality: quality,
+    dueAt: addDays(intervalDays),
+    lastReviewedAt: new Date().toISOString(),
+    reviewCount: card.reviewCount + 1,
   };
   write(CARDS_KEY, cards.map((item) => (item.id === cardId ? updated : item)));
   return updated;
+}
+
+export function retentionScore(card: RetrievalCard): number {
+  const successes = card.successCount ?? 0;
+  const misses = card.missCount ?? 0;
+  const partials = card.partialCount ?? 0;
+  const maturity = Math.min(70, successes * 10 + Math.log2(Math.max(1, card.intervalDays)) * 8);
+  const penalty = misses * 8 + partials * 3;
+  return Math.max(0, Math.min(100, Math.round(maturity - penalty)));
 }
 
 export function recordRetrievalScoreByRef(refType: RetrievalRefType, refId: string, quality: RetrievalQuality): RetrievalCard | undefined {

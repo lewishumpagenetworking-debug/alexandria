@@ -14,7 +14,7 @@ I will provide:
 2. My raw notes from a book/document.
 
 Return a completed spreadsheet using the EXISTING COLUMN HEADERS exactly:
-record_type, source_title, source_creator, location, text, interpretation, scholar_name, scholar_basis, scholar_source, scholar_url, scholar_confidence, principle, hall, priority
+record_type, source_title, source_creator, location, text, interpretation, scholar_name, scholar_basis, scholar_source, scholar_url, scholar_confidence, principle, context, memory_type, maxim, action, hall, priority
 
 Rules:
 - Do not rename, remove, reorder, or add columns.
@@ -33,7 +33,11 @@ Rules:
 - Use contextual when the scholar addresses the broader issue rather than the exact quote.
 - If there is no defensible scholarly basis, leave the scholar fields blank and use none. Do not invent authority.
 - principle = a reusable standalone principle only when the note genuinely supports one.
-- hall is optional. Use only one of: Natural Philosophy, Human Nature, Strategy & Power, Commerce & Creation, Logic & Systems, The Examined Life.\n- priority is optional and must be 1-5. Use 5 only for unusually important, broadly applicable, or foundational ideas; 3 for normal useful notes; 1 for low-value context. Leave blank if unsure.\n- Spreadsheet row order does NOT control learning order. Treat every row as an independent knowledge item; Alexandria will prioritise and shuffle them.
+- context = one or more retrieval contexts separated by |, for example Leadership | Strategy | Negotiation. Use durable conceptual categories, not fleeting chapter labels.
+- memory_type is optional and must be one of: quote, maxim, context, action, fact, principle.
+- maxim = a short internal rule worth being able to retrieve without seeing the original wording. Keep it faithful to the note.
+- action = a concrete decision or behaviour this note should inform when appropriate.
+- hall is optional. Use only one of: Natural Philosophy, Human Nature, Strategy & Power, Commerce & Creation, Logic & Systems, The Examined Life.\n- priority is optional and must be 1-5. Use 5 only for unusually important, broadly applicable, or foundational ideas; 3 for normal useful notes; 1 for low-value context. Leave blank if unsure.\n- Spreadsheet row order does NOT control learning order. Treat every row as an independent knowledge item; Alexandria will schedule it through retrieval, spacing, focused blocks and mixed review.
 - Leave a cell blank rather than inventing information.
 - Preserve my meaning. Do not fabricate quotes, page numbers, conclusions, or principles.
 - Return the completed file in CSV or XLSX format ready for re-upload into Alexandria.`;
@@ -147,6 +151,10 @@ export function ImportNotesWorkspace({ onBack, onComplete, initialSourceId = "" 
           <div><strong>interpretation</strong><span>Alexandria diagnosis → revealed after your Review response</span></div>
           <div><strong>scholar_*</strong><span>Optional scholar, basis, source, link, confidence → Review evidence layer</span></div>
           <div><strong>principle</strong><span>Reusable conclusion → Knowledge Map + Review</span></div>
+          <div><strong>context</strong><span>Retrieval category such as Leadership / Strategy / General → focused memory decks</span></div>
+          <div><strong>memory_type</strong><span>quote / maxim / context / action / fact / principle → controls flashcard direction</span></div>
+          <div><strong>maxim</strong><span>Short internal rule → reverse flashcards and maxim retention</span></div>
+          <div><strong>action</strong><span>Behavioural consequence → application retrieval</span></div>
           <div><strong>hall</strong><span>Optional domain tag → Knowledge Map Hall</span></div>
           <div><strong>location</strong><span>Page / chapter / timestamp → provenance</span></div>\n          <div><strong>priority</strong><span>Optional 1–5 importance signal → helps Alexandria choose what to surface first</span></div>
         </div>

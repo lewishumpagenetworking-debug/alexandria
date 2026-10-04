@@ -42,7 +42,7 @@ function categoryLabel(cat: PointEvent["category"]): string {
     "recall-check": "Review", interrogation: "Interrogation", "first-principles": "First Principles",
     agora: "Agora session", forum: "Forum session", "reading-session": "Reading",
     highlight: "Highlight saved", capture: "Idea captured", "book-import": "Book import",
-    "loop-lap": "Full loop lap", streak: "Streak bonus",
+    "loop-lap": "Full loop lap", streak: "Streak bonus", "memory-session": "Memory session",
   };
   return map[cat] ?? cat;
 }

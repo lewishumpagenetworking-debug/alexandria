@@ -14,6 +14,8 @@ export interface SculptorChallenge {
   expected?: string;
   guidance: string;
   difficulty: number;
+  reverse?: boolean;
+  cueText?: string;
 }
 
 export interface ChallengeRequest {
@@ -25,6 +27,7 @@ export interface ChallengeRequest {
   dueOnly?: boolean;
   recordSurface?: boolean;
   selectionMode?: "priority" | "shuffle";
+  reverse?: boolean;
 }
 
 function todayISO() {
@@ -101,10 +104,22 @@ function buildPrompt(unit: KnowledgeUnit, type: SculptorChallengeType, difficult
 
 export function buildKnowledgeChallengeForUnit(unit: KnowledgeUnit, card: RetrievalCard, request: ChallengeRequest = {}): SculptorChallenge {
   const difficulty = request.difficulty ?? 1;
-  const type = chooseType(unit, request);
-  const body = buildPrompt(unit, type, difficulty);
+  const type = request.reverse ? "retrieval" : chooseType(unit, request);
+  const body = request.reverse
+    ? {
+        prompt: unit.maxim
+          ? "Which source idea supports this maxim, and what did it mean in the book?"
+          : unit.action
+            ? "Which source idea justifies this action, and what principle are you meant to retrieve?"
+            : "Reconstruct the original source idea from this cue. State the meaning, not necessarily the exact wording.",
+        expected: unit.quote,
+        guidance: "Reverse retrieval strengthens access from a different cue. Recover the source idea, then check the original quote and context.",
+        reverse: true,
+        cueText: unit.maxim || unit.action || unit.principle || unit.alexandriaDiagnosis || unit.quote,
+      }
+    : buildPrompt(unit, type, difficulty);
   const category = sourceCategory(unit.sourceId, unit.sourceTitle);
-  if (category !== "general") {
+  if (category !== "general" && !request.reverse) {
     const questions = categoryQuestions(category);
     const deep = categoryDeepQuestions(category);
     body.prompt = type === "principle"
@@ -116,6 +131,29 @@ export function buildKnowledgeChallengeForUnit(unit: KnowledgeUnit, card: Retrie
           : deep[0];
     body.guidance = `${body.guidance} ${categoryLens(category)}`;
   }
+  if (!request.reverse && type === "diagnosis") {
+    if (unit.memoryType === "maxim" || unit.maxim) {
+      body.prompt = "What internal maxim should you be able to carry from this quote, and what does it mean in context?";
+      body.expected = unit.maxim || unit.principle || unit.alexandriaDiagnosis;
+      body.guidance = "Retrieve a compact rule without stripping away the conditions that made it true in the source.";
+    } else if (unit.memoryType === "action" || unit.action) {
+      body.prompt = "What action or decision should this quote change, and what source logic justifies that action?";
+      body.expected = unit.action || unit.principle || unit.alexandriaDiagnosis;
+      body.guidance = "Recall both the behavioural consequence and the reasoning that connects it to the passage.";
+    } else if (unit.memoryType === "context") {
+      body.prompt = "What context from the book does this passage help you remember, and why is that context important?";
+      body.expected = unit.alexandriaDiagnosis || unit.principle || unit.quote;
+      body.guidance = "Reconstruct the surrounding model, event, argument, or situation rather than memorising the sentence alone.";
+    } else if (unit.memoryType === "fact") {
+      body.prompt = "What specific fact or detail should be retained from this passage, and what larger idea does it support?";
+      body.expected = unit.alexandriaDiagnosis || unit.principle || unit.quote;
+      body.guidance = "Recall the specific information first, then connect it to the book's wider model.";
+    } else if (unit.memoryType === "principle") {
+      body.prompt = "What reusable principle is this passage evidence for, stated without copying the wording?";
+      body.expected = unit.principle || unit.alexandriaDiagnosis;
+      body.guidance = "Retrieve the principle and preserve its boundary conditions.";
+    }
+  }
   if (request.recordSurface !== false) recordKnowledgeUnitSurfaced(unit.id);
   return {
     id: `challenge:${unit.id}:${type}`,
@@ -123,6 +161,7 @@ export function buildKnowledgeChallengeForUnit(unit: KnowledgeUnit, card: Retrie
     card,
     type,
     difficulty,
+    reverse: request.reverse,
     ...body,
   };
 }

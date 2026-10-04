@@ -5,13 +5,13 @@ import { loadBooks, saveBooks } from "@/lib/application-store";
 import { saveCapture } from "@/lib/capture-store";
 import { awardPoints, POINTS } from "@/lib/points-store";
 import { registerCard } from "@/lib/retrieval-store";
-import type { Highlight, Interpretation, Principle } from "@/models/domain";
+import type { Highlight, Interpretation, Principle, MemoryItemType } from "@/models/domain";
 import { spreadsheetColumns, type ImportIssue, type ImportPreview, type ImportRow, type SpreadsheetImporter } from "./spreadsheet-import";
 
 /** Generates the downloadable .xlsx template for a book's notes, pre-filled with its title/author. */
 export function createNotesTemplate(book: { title: string; author: string }): Blob {
   const starterRows = Array.from({ length: 25 }, () => ({
-    record_type: "", source_title: book.title, source_creator: book.author, location: "", text: "", interpretation: "", scholar_name: "", scholar_basis: "", scholar_source: "", scholar_url: "", scholar_confidence: "", principle: "", hall: "", priority: "",
+    record_type: "", source_title: book.title, source_creator: book.author, location: "", text: "", interpretation: "", scholar_name: "", scholar_basis: "", scholar_source: "", scholar_url: "", scholar_confidence: "", principle: "", context: "", memory_type: "", maxim: "", action: "", hall: "", priority: "",
   }));
   const notesSheet = XLSX.utils.json_to_sheet(starterRows, { header: [...spreadsheetColumns] });
   const legendSheet = XLSX.utils.aoa_to_sheet([
@@ -27,6 +27,10 @@ export function createNotesTemplate(book: { title: string; author: string }): Bl
     ["scholar_url", "Source URL for the scholarly basis when available (optional)"],
     ["scholar_confidence", "direct, contextual, or none"],
     ["principle", "A standalone principle this row supports — fill this with or without 'text' (optional)"],
+    ["context", "One or more retrieval contexts separated by |, e.g. Leadership | Strategy | General"],
+    ["memory_type", "Optional: quote, maxim, context, action, fact, or principle"],
+    ["maxim", "A short internal maxim worth recalling from this note (optional)"],
+    ["action", "A concrete action or decision this note should inform (optional)"],
     ["hall", "Which Hall of Knowledge this belongs to (optional)"],
     ["priority", "Optional 1-5 importance score. 5 = unusually valuable or broadly applicable. Leave blank if unsure."],
     [], ["Halls:"], ...halls.map((hall) => [hall.title]),
@@ -59,7 +63,24 @@ function mapRow(row: ImportRow, sourceId: string): MappedRow {
   if (type === "question" && text) {
     mapped.question = text;
   } else if (text) {
-    mapped.highlight = { sourceId, text, location: values.location?.trim() || undefined };
+    const rawType = (values.memory_type || "").trim().toLowerCase();
+    const memoryType = ["quote", "maxim", "context", "action", "fact", "principle"].includes(rawType)
+      ? rawType as MemoryItemType
+      : undefined;
+    const contextTags = (values.context || "")
+      .split(/[|;]/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 12);
+    mapped.highlight = {
+      sourceId,
+      text,
+      location: values.location?.trim() || undefined,
+      contextTags: contextTags.length ? contextTags : undefined,
+      memoryType,
+      maxim: values.maxim?.trim() || undefined,
+      action: values.action?.trim() || undefined,
+    };
     if (interpretation) mapped.interpretation = {
       sourceId,
       text: interpretation,
