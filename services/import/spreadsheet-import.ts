@@ -13,6 +13,10 @@ export const spreadsheetColumns = [
   "scholar_url",
   "scholar_confidence",
   "principle",
+  "context",
+  "memory_type",
+  "maxim",
+  "action",
   "hall",
   "priority",
 ] as const;
