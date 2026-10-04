@@ -6,8 +6,8 @@ import { loadBooks, loadLogs } from "@/lib/application-store";
 import { listCaptures } from "@/lib/capture-store";
 import { getCurrentStep, getStats, STAGE_LABELS } from "@/lib/path-store";
 import { getDueCount } from "@/lib/retrieval-store";
-import { getDailyMemoryPlan, getTodayMemorySession, isTodayMemoryComplete } from "@/lib/memory-engine";
-import { getTotalPoints, getPointsToday, listPointEvents } from "@/lib/points-store";
+import { getDailyMemoryPlan, isTodayMemoryComplete } from "@/lib/memory-engine";
+import { getTotalPoints, getPointsToday } from "@/lib/points-store";
 import { listApplications } from "@/lib/apply-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 import { ReadInsteadCard } from "@/components/read-instead-card";
@@ -70,11 +70,9 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
   const [stats, setStats] = useState(getStats());
   const [xp, setXp] = useState(getTotalPoints());
   const [xpToday, setXpToday] = useState(getPointsToday());
-  const [history, setHistory] = useState(listPointEvents());
   const [applications, setApplications] = useState(listApplications());
   const [logs, setLogs] = useState(loadLogs());
   const [memoryPlan, setMemoryPlan] = useState(getDailyMemoryPlan());
-  const [memorySession, setMemorySession] = useState(getTodayMemorySession());
 
   useEffect(() => {
     function sync() {
@@ -85,11 +83,9 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
       setStats(getStats());
       setXp(getTotalPoints());
       setXpToday(getPointsToday());
-      setHistory(listPointEvents());
       setApplications(listApplications());
       setLogs(loadLogs());
       setMemoryPlan(getDailyMemoryPlan());
-      setMemorySession(getTodayMemorySession());
     }
     sync();
     window.addEventListener("storage", sync);
@@ -105,7 +101,6 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
   const logsToday = logs.filter((l) => l.createdAt?.startsWith(today) || l.date === new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date()));
   const capturesToday = captures.filter((c) => c.createdAt?.startsWith(today));
   const appsToday = applications.filter((a) => a.status !== "planned" && (a.attemptedAt?.startsWith(today) || a.createdAt.startsWith(today)));
-  const reviewedToday = history.filter((e) => e.createdAt.startsWith(today) && (e.category === "recall-check" || e.category === "interrogation" || e.category === "first-principles" || e.category === "agora" || e.category === "forum" || e.category === "memory-session")).length > 0;
   const memoryComplete = isTodayMemoryComplete();
   const connectedToday = false; // Knowledge Map connections not yet tracked
 
