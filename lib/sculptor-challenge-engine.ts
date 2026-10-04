@@ -14,6 +14,8 @@ export interface SculptorChallenge {
   expected?: string;
   guidance: string;
   difficulty: number;
+  reverse?: boolean;
+  cueText?: string;
 }
 
 export interface ChallengeRequest {
@@ -25,6 +27,7 @@ export interface ChallengeRequest {
   dueOnly?: boolean;
   recordSurface?: boolean;
   selectionMode?: "priority" | "shuffle";
+  reverse?: boolean;
 }
 
 function todayISO() {
@@ -101,10 +104,22 @@ function buildPrompt(unit: KnowledgeUnit, type: SculptorChallengeType, difficult
 
 export function buildKnowledgeChallengeForUnit(unit: KnowledgeUnit, card: RetrievalCard, request: ChallengeRequest = {}): SculptorChallenge {
   const difficulty = request.difficulty ?? 1;
-  const type = chooseType(unit, request);
-  const body = buildPrompt(unit, type, difficulty);
+  const type = request.reverse ? "retrieval" : chooseType(unit, request);
+  const body = request.reverse
+    ? {
+        prompt: unit.maxim
+          ? "Which source idea supports this maxim, and what did it mean in the book?"
+          : unit.action
+            ? "Which source idea justifies this action, and what principle are you meant to retrieve?"
+            : "Reconstruct the original source idea from this cue. State the meaning, not necessarily the exact wording.",
+        expected: unit.quote,
+        guidance: "Reverse retrieval strengthens access from a different cue. Recover the source idea, then check the original quote and context.",
+        reverse: true,
+        cueText: unit.maxim || unit.action || unit.principle || unit.alexandriaDiagnosis || unit.quote,
+      }
+    : buildPrompt(unit, type, difficulty);
   const category = sourceCategory(unit.sourceId, unit.sourceTitle);
-  if (category !== "general") {
+  if (category !== "general" && !request.reverse) {
     const questions = categoryQuestions(category);
     const deep = categoryDeepQuestions(category);
     body.prompt = type === "principle"
@@ -123,6 +138,7 @@ export function buildKnowledgeChallengeForUnit(unit: KnowledgeUnit, card: Retrie
     card,
     type,
     difficulty,
+    reverse: request.reverse,
     ...body,
   };
 }
