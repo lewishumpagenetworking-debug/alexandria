@@ -1,6 +1,6 @@
 export type PointCategory =
   | "recall-check" | "interrogation" | "first-principles" | "agora" | "forum"
-  | "reading-session" | "highlight" | "capture" | "book-import" | "loop-lap" | "streak";
+  | "reading-session" | "highlight" | "capture" | "book-import" | "loop-lap" | "streak" | "memory-session";
 
 export interface PointEvent {
   id: string;
@@ -32,6 +32,7 @@ export const POINTS = {
   streakDay: 5,
   streakMilestone7: 25,
   streakMilestone30: 100,
+  memorySessionComplete: 40,
 } as const;
 
 const EVENTS_KEY = "alexandria-points-v1";
