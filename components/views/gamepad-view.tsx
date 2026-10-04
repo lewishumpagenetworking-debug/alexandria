@@ -11,6 +11,7 @@ import { SourceReference } from "@/components/source-reference";
 import { BookMemoryPrimer } from "@/components/book-memory-primer";
 import { loadBooks } from "@/lib/application-store";
 import {
+  addMemorySessionActiveSeconds,
   buildMemoryDeck,
   completeMemorySession,
   getDailyMemoryPlan,
@@ -90,9 +91,18 @@ export function GamePadView() {
 
   useEffect(() => {
     if (mode !== "quiz" || !memorySession || memorySession.completedAt) return;
-    const tick = () => setElapsedSeconds(memorySessionElapsedSeconds(memorySession));
-    tick();
-    const timer = window.setInterval(tick, 1000);
+    setElapsedSeconds(memorySessionElapsedSeconds(memorySession));
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      setElapsedSeconds((current) => {
+        const next = current + 1;
+        if (next % 5 === 0) {
+          const updated = addMemorySessionActiveSeconds(memorySession.id, 5);
+          if (updated) setMemorySession(updated);
+        }
+        return next;
+      });
+    }, 1000);
     return () => window.clearInterval(timer);
   }, [mode, memorySession?.id, memorySession?.completedAt]);
 
@@ -311,7 +321,7 @@ export function GamePadView() {
               <div className="result-stat miss"><b>{blank}</b><span>Missed</span></div>
             </div>
             <p className="review-summary">{accuracy}% weighted retrieval accuracy across {quiz.scores.length} cards. Misses and partials now return sooner; stable memories expand their interval.</p>
-            <p className="saved-note">+{POINTS.memorySessionComplete} completion points for the first completed memory block today, plus card-level retrieval points.</p>
+            <p className="saved-note">Daily completion points are awarded once per day; card-level retrieval points continue on any extra blocks.</p>
             <div className="button-row">
               <button className="small-btn" onClick={() => setMode("menu")}>Back to Game Pad</button>
               {poolCount > 0 && <button className="small-btn primary" onClick={startQuiz}>Start an extra memory block</button>}
