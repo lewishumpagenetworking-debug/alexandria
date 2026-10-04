@@ -42,6 +42,7 @@ export interface MemorySession {
   nailed: number;
   partial: number;
   blank: number;
+  activeSeconds?: number;
   completedAt?: string;
 }
 
@@ -105,14 +106,16 @@ function ensureCycleState(): MemoryCycleState {
 export const listMemorySessions = () => read<MemorySession[]>(SESSIONS_KEY, []);
 
 export function getTodayMemorySession(): MemorySession | null {
-  return listMemorySessions().find((session) => session.date === todayISO()) ?? null;
+  const sessions = listMemorySessions().filter((session) => session.date === todayISO());
+  return sessions.find((session) => !session.completedAt) ?? sessions[0] ?? null;
 }
 
 export function isTodayMemoryComplete(): boolean {
-  return Boolean(getTodayMemorySession()?.completedAt);
+  return listMemorySessions().some((session) => session.date === todayISO() && Boolean(session.completedAt));
 }
 
 export function memorySessionElapsedSeconds(session: MemorySession): number {
+  if (typeof session.activeSeconds === "number") return Math.max(0, Math.floor(session.activeSeconds));
   const end = session.completedAt ? new Date(session.completedAt).getTime() : Date.now();
   return Math.max(0, Math.floor((end - new Date(session.startedAt).getTime()) / 1000));
 }
@@ -200,9 +203,8 @@ export function getDailyMemoryPlan(): DailyMemoryPlan {
   let direction: MemoryDirection = "forward";
 
   if (intensive) {
-    if (weekday === 3) scope = "context";
-    else if (weekday === 6) scope = "mixed";
-    else scope = "book";
+    // A genuinely weak book receives a full relearning week rather than being diluted by interleaving.
+    scope = "book";
     if (weekday === 2 || weekday === 5) direction = "reverse";
   } else {
     const pattern: Array<{ scope: MemoryScope; direction: MemoryDirection }> = [
@@ -314,9 +316,20 @@ export function startMemorySession(plan: DailyMemoryPlan = getDailyMemoryPlan(),
     nailed: 0,
     partial: 0,
     blank: 0,
+    activeSeconds: 0,
   };
   write(SESSIONS_KEY, [session, ...listMemorySessions()].slice(0, 1000));
   return session;
+}
+
+export function addMemorySessionActiveSeconds(sessionId: string, seconds: number): MemorySession | null {
+  if (!Number.isFinite(seconds) || seconds <= 0) return listMemorySessions().find((item) => item.id === sessionId) ?? null;
+  const sessions = listMemorySessions();
+  const session = sessions.find((item) => item.id === sessionId);
+  if (!session || session.completedAt) return session ?? null;
+  const updated = { ...session, activeSeconds: (session.activeSeconds ?? 0) + seconds };
+  write(SESSIONS_KEY, sessions.map((item) => item.id === sessionId ? updated : item));
+  return updated;
 }
 
 export function recordMemorySessionReview(sessionId: string, quality: RetrievalQuality): MemorySession | null {
