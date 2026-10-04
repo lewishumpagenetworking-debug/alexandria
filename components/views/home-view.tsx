@@ -6,6 +6,7 @@ import { loadBooks, loadLogs } from "@/lib/application-store";
 import { listCaptures } from "@/lib/capture-store";
 import { getCurrentStep, getStats, STAGE_LABELS } from "@/lib/path-store";
 import { getDueCount } from "@/lib/retrieval-store";
+import { getDailyMemoryPlan, getTodayMemorySession, isTodayMemoryComplete } from "@/lib/memory-engine";
 import { getTotalPoints, getPointsToday, listPointEvents } from "@/lib/points-store";
 import { listApplications } from "@/lib/apply-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
@@ -72,6 +73,8 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
   const [history, setHistory] = useState(listPointEvents());
   const [applications, setApplications] = useState(listApplications());
   const [logs, setLogs] = useState(loadLogs());
+  const [memoryPlan, setMemoryPlan] = useState(getDailyMemoryPlan());
+  const [memorySession, setMemorySession] = useState(getTodayMemorySession());
 
   useEffect(() => {
     function sync() {
@@ -85,6 +88,8 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
       setHistory(listPointEvents());
       setApplications(listApplications());
       setLogs(loadLogs());
+      setMemoryPlan(getDailyMemoryPlan());
+      setMemorySession(getTodayMemorySession());
     }
     sync();
     window.addEventListener("storage", sync);
@@ -100,13 +105,14 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
   const logsToday = logs.filter((l) => l.createdAt?.startsWith(today) || l.date === new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date()));
   const capturesToday = captures.filter((c) => c.createdAt?.startsWith(today));
   const appsToday = applications.filter((a) => a.status !== "planned" && (a.attemptedAt?.startsWith(today) || a.createdAt.startsWith(today)));
-  const reviewedToday = history.filter((e) => e.createdAt.startsWith(today) && (e.category === "recall-check" || e.category === "interrogation" || e.category === "first-principles" || e.category === "agora" || e.category === "forum")).length > 0;
+  const reviewedToday = history.filter((e) => e.createdAt.startsWith(today) && (e.category === "recall-check" || e.category === "interrogation" || e.category === "first-principles" || e.category === "agora" || e.category === "forum" || e.category === "memory-session")).length > 0;
+  const memoryComplete = isTodayMemoryComplete();
   const connectedToday = false; // Knowledge Map connections not yet tracked
 
   const protocol: DailyProtocol[] = [
     { id: "acquire", label: "Acquire", description: "Read and log a session", done: logsToday.length > 0, space: "library" },
     { id: "capture", label: "Capture", description: "Save an idea or observation", done: capturesToday.length > 0, space: "notes" },
-    { id: "retrieve", label: "Retrieve", description: "Test your recall on due cards", done: dueCount === 0 && reviewedToday, space: "review" },
+    { id: "retrieve", label: "Memory", description: `${memoryPlan.targetMinutes}-minute adaptive retrieval block`, done: memoryComplete, space: "gamepad" },
     { id: "connect", label: "Connect", description: "Link concepts across sources", done: connectedToday, space: "knowledge-map" },
     { id: "apply", label: "Apply", description: "Use knowledge in a real situation", done: appsToday.length > 0, space: "apply" },
     { id: "learn", label: "Learn", description: "Complete today's learning step", done: stats.completedSteps > 0 && currentStep === null, space: "learn" },
@@ -126,14 +132,30 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
         cta: "Open Library",
       };
     }
+    if (!memoryComplete && memoryPlan.poolCount > 0) {
+      return {
+        icon: "🧠",
+        title: `Complete today's ${memoryPlan.targetMinutes}-minute memory block`,
+        context: memoryPlan.focusBookTitle
+          ? `Focused relearning · ${memoryPlan.focusBookTitle}`
+          : memoryPlan.focusContext
+            ? `Context focus · ${memoryPlan.focusContext}`
+            : memoryPlan.direction === "reverse"
+              ? "Mixed reverse retrieval across the Library"
+              : "Mixed retrieval across the Library",
+        why: "Retrieval, feedback, and spaced relearning are the highest-priority memory work. Finish the block before treating extra review as optional.",
+        space: "gamepad",
+        cta: "Start memory block",
+      };
+    }
     if (dueCount > 0) {
       return {
         icon: "🔁",
-        title: `Review ${dueCount} concept${dueCount === 1 ? "" : "s"}`,
-        context: `${dueCount} item${dueCount === 1 ? "" : "s"} scheduled for today — testing now keeps them in long-term memory.`,
-        why: "Memory decays predictably. Testing yourself at the right moment is 3× more effective than rereading, and it takes minutes not hours.",
+        title: `${dueCount} scheduled review${dueCount === 1 ? "" : "s"} remain`,
+        context: "Your required memory block is complete; these are additional spaced reviews.",
+        why: "Extra due reviews strengthen weak items, but they no longer replace the daily adaptive memory block.",
         space: "review",
-        cta: "Start review",
+        cta: "Open review",
       };
     }
     if (currentStep) {
@@ -240,7 +262,7 @@ export function HomeView({ navigate }: { navigate: (space: AlexandriaSpace) => v
               <div className="stat-row compact">
                 <div className="stat"><b>{stats.currentStreakDays}</b><span>day streak</span></div>
                 <div className="stat"><b>{xpToday}</b><span>XP today</span></div>
-                <div className="stat"><b>{dueCount}</b><span>due for review</span></div>
+                <div className="stat"><b>{memoryComplete ? "✓" : memoryPlan.targetMinutes}</b><span>{memoryComplete ? "memory done" : "memory min"}</span></div>
                 <div className="stat"><b>{books.length}</b><span>books</span></div>
               </div>
             </article>
