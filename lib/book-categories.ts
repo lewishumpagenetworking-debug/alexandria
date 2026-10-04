@@ -49,6 +49,15 @@ export function categoryQuestions(category: BookCategory): string[] {
   const p = PROFILES[category];
   return [`In your own words, what is ${p.claim}? Which exact words in this passage support your reading?`, `What must be true about ${p.assumptions} for the claim to hold?`, `What is established by ${p.evidence}, and what remains assumed?`, `Strip away analogy and reputation. What minimum facts or premises support ${p.claim}?`, `Rebuild the argument: explain ${p.mechanism} without borrowing the author's wording.`, `Where does the claim stop working? Give ${p.limits}.`, `How would you use this idea? Specify ${p.action}, and explain why the passage supports it.`];
 }
+export function categoryDeepQuestions(category: BookCategory): string[] {
+  const p = PROFILES[category];
+  return [
+    `Meaning — in your own words, what is ${p.claim}?`,
+    `Mechanism — why would this be true? Trace ${p.mechanism} and name the key assumptions about ${p.assumptions}.`,
+    `Boundary — where does this stop working? Give ${p.limits}.`,
+    `Transfer — where should this change what you do? Specify ${p.action} and why this passage justifies it.`,
+  ];
+}
 export function categoryStages(category: BookCategory): Array<[string, string]> {
   const p = PROFILES[category];
   return [["Statement", `State ${p.claim}.`], ["Assumptions", `Identify ${p.assumptions}. Which can you defend?`], ["Observations", `Separate ${p.evidence}. What does the passage actually establish?`], ["Fundamental truths", `Which definitions, constraints or supported facts are essential? Trace ${p.mechanism}.`], ["Reduction", "Remove analogy, reputation and unnecessary assumptions. What minimum argument remains?"], ["Reconstruction", `From those foundations, reconstruct ${p.mechanism}. What conclusion follows?`], ["Boundary conditions", `Give ${p.limits}.`], ["Application", `Specify ${p.action}. What result would make you revise your view?`]];
