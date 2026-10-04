@@ -1,4 +1,4 @@
-import { sourceCategory, categoryQuestions, categoryLens } from "./book-categories";
+import { sourceCategory, categoryQuestions, categoryDeepQuestions, categoryLens } from "./book-categories";
 import { getKnowledgeUnitCard, listKnowledgeUnits, recordKnowledgeAttempt, recordKnowledgeUnitSurfaced } from "@/lib/knowledge-unit-store";
 import type { KnowledgeUnit } from "@/models/domain";
 import { recordKnowledgeEngagement, recordRetrievalScore, type RetrievalCard, type RetrievalQuality } from "@/lib/retrieval-store";
@@ -18,11 +18,13 @@ export interface SculptorChallenge {
 
 export interface ChallengeRequest {
   sourceTitle?: string;
+  sourceId?: string;
   allowedTypes?: SculptorChallengeType[];
   difficulty?: number;
   excludeUnitIds?: Set<string>;
   dueOnly?: boolean;
   recordSurface?: boolean;
+  selectionMode?: "priority" | "shuffle";
 }
 
 function todayISO() {
@@ -104,9 +106,14 @@ export function buildKnowledgeChallengeForUnit(unit: KnowledgeUnit, card: Retrie
   const category = sourceCategory(unit.sourceId, unit.sourceTitle);
   if (category !== "general") {
     const questions = categoryQuestions(category);
+    const deep = categoryDeepQuestions(category);
     body.prompt = type === "principle"
       ? `Extract a reusable ${category} principle from this passage. ${questions[4]} State the principle in your own words and explain its limits.`
-      : questions[type === "application" ? 6 : type === "boundary" ? 5 : 0];
+      : type === "application"
+        ? deep[3]
+        : type === "boundary"
+          ? deep[2]
+          : deep[0];
     body.guidance = `${body.guidance} ${categoryLens(category)}`;
   }
   if (request.recordSurface !== false) recordKnowledgeUnitSurfaced(unit.id);
@@ -124,11 +131,20 @@ export function getKnowledgeChallenge(request: ChallengeRequest = {}): SculptorC
   const excluded = request.excludeUnitIds ?? new Set<string>();
   const candidates = listKnowledgeUnits()
     .filter((unit) => !excluded.has(unit.id))
+    .filter((unit) => !request.sourceId || unit.sourceId === request.sourceId)
     .filter((unit) => !request.sourceTitle || request.sourceTitle === "all" || unit.sourceTitle === request.sourceTitle)
     .map((unit) => ({ unit, card: getKnowledgeUnitCard(unit) }))
     .filter((item): item is { unit: KnowledgeUnit; card: RetrievalCard } => Boolean(item.card))
-    .filter(({ card }) => !request.dueOnly || card.dueAt <= todayISO())
-    .sort((a, b) => scoreUnit(b.unit, b.card, request) - scoreUnit(a.unit, a.card, request));
+    .filter(({ card }) => !request.dueOnly || card.dueAt <= todayISO());
+
+  if (request.selectionMode === "shuffle") {
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+  } else {
+    candidates.sort((a, b) => scoreUnit(b.unit, b.card, request) - scoreUnit(a.unit, a.card, request));
+  }
 
   const selected = candidates[0];
   if (!selected) return null;
@@ -136,8 +152,8 @@ export function getKnowledgeChallenge(request: ChallengeRequest = {}): SculptorC
   return buildKnowledgeChallengeForUnit(selected.unit, selected.card, request);
 }
 
-export function getKnowledgeChallengeDeck(sourceTitle?: string): KnowledgeUnit[] {
-  return listKnowledgeUnits().filter((unit) => !sourceTitle || sourceTitle === "all" || unit.sourceTitle === sourceTitle);
+export function getKnowledgeChallengeDeck(sourceTitle?: string, sourceId?: string): KnowledgeUnit[] {
+  return listKnowledgeUnits().filter((unit) => (!sourceId || unit.sourceId === sourceId) && (!sourceTitle || sourceTitle === "all" || unit.sourceTitle === sourceTitle));
 }
 
 
