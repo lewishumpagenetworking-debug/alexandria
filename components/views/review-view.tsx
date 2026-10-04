@@ -6,6 +6,7 @@ import { getKnowledgeChallenge, recordSculptorChallengeResult, type SculptorChal
 import { awardPoints, POINTS } from "@/lib/points-store";
 import type { AlexandriaSpace } from "@/services/mcp/browser-tools";
 import { SourceReference } from "@/components/source-reference";
+import { BookMemoryPrimer } from "@/components/book-memory-primer";
 import { getReviewEvidence } from "@/lib/review-evidence";
 import { loadLearningCampaign } from "@/lib/curriculum-store";
 import { curriculumBookById, curriculumFocusById } from "@/data/curriculum";
@@ -35,6 +36,7 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
         dueOnly: true,
         excludeUnitIds: excluded,
         recordSurface: false,
+        selectionMode: "shuffle",
       });
       if (!challenge) break;
       challenges.push(challenge);
@@ -187,10 +189,12 @@ export function ReviewView({ navigate }: { navigate: (space: AlexandriaSpace) =>
             {card.reviewCount > 0 && <span className="meta">reviewed {card.reviewCount}×</span>}
           </div>
 
+          <BookMemoryPrimer sourceId={challenge.unit.sourceId} />
+
           <SourceReference
             label={challenge.unit.sourceTitle}
             text={challenge.unit.quote}
-            note={challenge.unit.location ? `${challenge.unit.location} · First diagnose the quote yourself. Alexandria's interpretation and scholarly basis stay hidden until you commit.` : "First diagnose the quote yourself. Alexandria's interpretation and scholarly basis stay hidden until you commit."}
+            note={challenge.unit.location ? `${challenge.unit.location} · Reconstruct the quote from the book context above. Alexandria's interpretation and scholarly basis stay hidden until you commit.` : "Reconstruct the quote from the book context above. Alexandria's interpretation and scholarly basis stay hidden until you commit."}
           />
 
           {phase === "recall" && (
