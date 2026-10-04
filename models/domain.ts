@@ -33,11 +33,21 @@ export interface Book extends Source {
   totalChapters?: number;
 }
 
+export type MemoryItemType = "quote" | "maxim" | "context" | "action" | "fact" | "principle";
+
 export interface Highlight {
   id: EntityId;
   sourceId: EntityId;
   text: string;
   location?: string;
+  /** Optional retrieval contexts supplied at import, e.g. Leadership | Strategy | General. */
+  contextTags?: string[];
+  /** What kind of memory this note is primarily meant to support. */
+  memoryType?: MemoryItemType;
+  /** A compact internal maxim distilled from the note when appropriate. */
+  maxim?: string;
+  /** A concrete behaviour or decision this note should inform. */
+  action?: string;
   capturedAt: ISODateString;
 }
 
@@ -221,6 +231,10 @@ export interface KnowledgeUnit {
   scholarConfidence?: "direct" | "contextual" | "none";
   principle?: string;
   principleExplanation?: string;
+  contextTags?: string[];
+  memoryType?: MemoryItemType;
+  maxim?: string;
+  action?: string;
   assumptions: string[];
   fundamentals: string[];
   boundaries: string[];
