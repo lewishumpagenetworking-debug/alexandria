@@ -131,6 +131,29 @@ export function buildKnowledgeChallengeForUnit(unit: KnowledgeUnit, card: Retrie
           : deep[0];
     body.guidance = `${body.guidance} ${categoryLens(category)}`;
   }
+  if (!request.reverse && type === "diagnosis") {
+    if (unit.memoryType === "maxim" || unit.maxim) {
+      body.prompt = "What internal maxim should you be able to carry from this quote, and what does it mean in context?";
+      body.expected = unit.maxim || unit.principle || unit.alexandriaDiagnosis;
+      body.guidance = "Retrieve a compact rule without stripping away the conditions that made it true in the source.";
+    } else if (unit.memoryType === "action" || unit.action) {
+      body.prompt = "What action or decision should this quote change, and what source logic justifies that action?";
+      body.expected = unit.action || unit.principle || unit.alexandriaDiagnosis;
+      body.guidance = "Recall both the behavioural consequence and the reasoning that connects it to the passage.";
+    } else if (unit.memoryType === "context") {
+      body.prompt = "What context from the book does this passage help you remember, and why is that context important?";
+      body.expected = unit.alexandriaDiagnosis || unit.principle || unit.quote;
+      body.guidance = "Reconstruct the surrounding model, event, argument, or situation rather than memorising the sentence alone.";
+    } else if (unit.memoryType === "fact") {
+      body.prompt = "What specific fact or detail should be retained from this passage, and what larger idea does it support?";
+      body.expected = unit.alexandriaDiagnosis || unit.principle || unit.quote;
+      body.guidance = "Recall the specific information first, then connect it to the book's wider model.";
+    } else if (unit.memoryType === "principle") {
+      body.prompt = "What reusable principle is this passage evidence for, stated without copying the wording?";
+      body.expected = unit.principle || unit.alexandriaDiagnosis;
+      body.guidance = "Retrieve the principle and preserve its boundary conditions.";
+    }
+  }
   if (request.recordSurface !== false) recordKnowledgeUnitSurfaced(unit.id);
   return {
     id: `challenge:${unit.id}:${type}`,
