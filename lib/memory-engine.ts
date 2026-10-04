@@ -299,13 +299,13 @@ export function buildMemoryDeck(request: MemoryDeckRequest = {}, limit = 50): Kn
   return pool.slice(0, limit);
 }
 
-export function startMemorySession(plan: DailyMemoryPlan = getDailyMemoryPlan(), override?: { sourceId?: string; sourceTitle?: string; context?: string; direction?: MemoryDirection }): MemorySession {
+export function startMemorySession(plan: DailyMemoryPlan = getDailyMemoryPlan(), override?: { scope?: MemoryScope; sourceId?: string; sourceTitle?: string; context?: string; direction?: MemoryDirection }): MemorySession {
   const session: MemorySession = {
     id: `memory-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`,
     date: todayISO(),
     startedAt: new Date().toISOString(),
     targetMinutes: plan.targetMinutes,
-    scope: override?.sourceId ? "book" : override?.context ? "context" : plan.scope,
+    scope: override?.scope ?? (override?.sourceId ? "book" : override?.context ? "context" : plan.scope),
     direction: override?.direction ?? plan.direction,
     focusBookId: override?.sourceId ?? plan.focusBookId,
     focusBookTitle: override?.sourceTitle ?? plan.focusBookTitle,
