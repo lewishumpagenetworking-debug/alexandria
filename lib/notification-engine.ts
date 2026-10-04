@@ -2,6 +2,7 @@ import { loadLogs } from "@/lib/application-store";
 import { getActiveHabitReplacement } from "@/lib/habit-store";
 import { getDueCount } from "@/lib/retrieval-store";
 import { getSettings } from "@/lib/settings-store";
+import { getDailyMemoryPlan, isTodayMemoryComplete } from "@/lib/memory-engine";
 
 export type ReminderSlot = "morning" | "afternoon" | "evening";
 export type NotificationSlot = ReminderSlot | "pulse" | "test";
@@ -99,7 +100,10 @@ function pulseBody(): string {
   const due = getDueCount();
   const active = getActiveHabitReplacement();
   const readToday = hasReadToday();
+  const memoryPlan = getDailyMemoryPlan();
+  const memoryDone = isTodayMemoryComplete();
   if (active) return `Reading sprint in progress: ${active.bookTitle ?? "your book"}. Keep the feed closed until the block is finished.`;
+  if (!memoryDone && memoryPlan.poolCount > 0) return `Memory block incomplete: ${memoryPlan.targetMinutes} focused minutes of retrieval are still today's priority.`;
   if (!readToday) return "Half-hour check: choose the book before the feed. Ten pages or ten minutes is enough to move the day forward.";
   if (due > 0) return `Half-hour check: reading is logged. ${due} concept${due === 1 ? "" : "s"} still need retrieval to turn today's reading into memory.`;
   return "Half-hour check: reading is in the bank and reviews are current. Protect the habit rather than defaulting to the feed.";
@@ -122,8 +126,19 @@ function bodyFor(slot: ReminderSlot): string {
   const due = getDueCount();
   const active = getActiveHabitReplacement();
   const readToday = hasReadToday();
+  const memoryPlan = getDailyMemoryPlan();
+  const memoryDone = isTodayMemoryComplete();
 
   if (active) return `Your ${active.targetMinutes}-minute reading replacement is still open. Finish the sprint before returning to the feed.`;
+
+  if (!memoryDone && memoryPlan.poolCount > 0) {
+    const focus = memoryPlan.focusBookTitle
+      ? ` Focus today: ${memoryPlan.focusBookTitle}.`
+      : memoryPlan.focusContext
+        ? ` Focus today: ${memoryPlan.focusContext}.`
+        : "";
+    return `Your ${memoryPlan.targetMinutes}-minute memory session is still incomplete.${focus} Retrieval comes before optional review.`;
+  }
 
   if (slot === "morning") {
     if (!readToday) return due > 0
